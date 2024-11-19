@@ -1,0 +1,28 @@
+[package]
+name = "hydra-lang"
+version = "0.1.0"
+edition = "2021"
+authors = ["sty00a4"]
+description = "A scripting language with a Python-like syntax and Lua-like runtime."
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/sty00a4-code/hydra-lang"
+
+[[bin]]
+name = "hydra"
+path = "bin/main.rs"
+
+[package.metadata.bundle.bin.luna]
+name = "HydraLang"
+identifier = "hydra"
+authors = ["sty00a4"]
+
+[profile.release]
+strip = true
+opt-level = "z"
+codegen-units = 1
+panic = "abort"
+lto = true
+
+[dependencies]
+clap = { version = "4.5.21", features = ["derive"] }
