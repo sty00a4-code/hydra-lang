@@ -311,6 +311,37 @@ impl Parsable for Statement {
                     Position::new(parser.ln()..parser.ln(), index),
                 ))
             }
+            Token::Fn => {
+                let mut pos = Position::new(parser.ln()..parser.ln(), index);
+                let name = Parameter::parse_ident(parser)?;
+                parser.expect(Token::ParanLeft)?;
+                let mut params = vec![];
+                let mut varargs = None;
+                while let Some(Indexed { value: token, .. }) = parser.peek() {
+                    if token == &Token::ParanRight {
+                        break;
+                    }
+                    if token == &Token::DotDotDot {
+                        parser.expect_any()?;
+                        varargs = Some(Parameter::parse_ident(parser)?);
+                        break;
+                    }
+                    let param = Parameter::parse(parser)?;
+                    params.push(param);
+                    if let Some(Indexed {
+                        value: Token::ParanRight,
+                        index: _,
+                    }) = parser.peek()
+                    {
+                        break;
+                    }
+                    parser.expect(Token::Comma)?;
+                }
+                parser.expect(Token::ParanRight)?;
+                let body = Block::parse(parser)?;
+                pos.extend(&body.pos);
+                Ok(Located::new(Self::Fn { name, params, varargs, body }, pos))
+            }
             token => Err(Located::new(
                 ParseError::UnexpectedToken(token),
                 Position::new(parser.ln()..parser.ln(), index),

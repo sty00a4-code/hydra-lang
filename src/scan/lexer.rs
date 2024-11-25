@@ -131,7 +131,21 @@ impl<'source> Iterator for LineLexer<'source> {
                 }
             }
             ',' => Some(Ok(Indexed::new(Token::Comma, index))),
-            '.' => Some(Ok(Indexed::new(Token::Dot, index))),
+            '.' => {
+                if let Some((col, '.')) = self.chars.peek().cloned() {
+                    self.chars.next();
+                    index.end = col;
+                    if let Some((col, '.')) = self.chars.peek().cloned() {
+                        self.chars.next();
+                        index.end = col;
+                        Some(Ok(Indexed::new(Token::DotDotDot, index)))
+                    } else {
+                        Some(Ok(Indexed::new(Token::DotDot, index)))
+                    }
+                } else {
+                    Some(Ok(Indexed::new(Token::Dot, index)))
+                }
+            }
             ':' => Some(Ok(Indexed::new(Token::Colon, index))),
             '!' => {
                 if let Some((col, '=')) = self.chars.peek().cloned() {

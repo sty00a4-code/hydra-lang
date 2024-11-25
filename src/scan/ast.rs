@@ -18,6 +18,12 @@ pub enum Statement {
         path: Located<Path>,
         expr: Located<Expression>,
     },
+    Fn {
+        name: Located<String>,
+        params: Vec<Located<Parameter>>,
+        varargs: Option<Located<String>>,
+        body: Located<Block>,
+    },
     Call {
         head: Located<Path>,
         args: Vec<Located<Expression>>,
