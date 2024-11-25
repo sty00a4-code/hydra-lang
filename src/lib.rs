@@ -10,6 +10,7 @@ use scan::{
 mod tests;
 
 pub mod scan;
+pub mod run;
 
 pub fn parse<N: Parsable>(text: &str) -> Result<Located<N>, Located<Box<dyn Error>>>
 where
