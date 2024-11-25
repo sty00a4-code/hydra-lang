@@ -454,7 +454,7 @@ impl Parsable for Expression {
     }
 }
 impl BinaryOperator {
-    const LAYERS: &[&[Self]] = &[
+    const LAYERS: &'static [&'static [Self]] = &[
         &[Self::And, Self::Or],
         &[
             Self::EqualEqual,
@@ -492,7 +492,7 @@ impl BinaryOperator {
     }
 }
 impl UnaryOperator {
-    const LAYERS: &[&[Self]] = &[&[Self::Not], &[Self::Minus]];
+    const LAYERS: &'static [&'static [Self]] = &[&[Self::Not], &[Self::Minus]];
     pub fn layer(layer: usize) -> Option<&'static [Self]> {
         Self::LAYERS.get(layer).copied()
     }
