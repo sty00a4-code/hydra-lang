@@ -9,8 +9,8 @@ use scan::{
 #[cfg(test)]
 mod tests;
 
-pub mod scan;
 pub mod run;
+pub mod scan;
 
 pub fn parse<N: Parsable>(text: &str) -> Result<Located<N>, Located<Box<dyn Error>>>
 where

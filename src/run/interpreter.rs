@@ -160,7 +160,7 @@ impl Interpreter {
     pub fn closure(&self, addr: u16) -> Option<&Rc<Closure>> {
         self.call_frame()?.closure.closures.get(addr as usize)
     }
-    pub fn step(&mut self) -> Result<bool, RunTimeError> {
+    pub fn step(&mut self) -> Result<Option<Option<Value>>, RunTimeError> {
         let ln = self.ln().unwrap_or_default();
         let instr = self.instr().unwrap();
         self.call_frame_mut().unwrap().idx += 1;
@@ -210,8 +210,7 @@ impl Interpreter {
                 }
             }
             ByteCode::Return { src } => {
-                self.return_call(src.unwrap_or_default());
-                return Ok(true);
+                return Ok(Some(self.return_call(src.unwrap_or_default())));
             }
             ByteCode::Move { dst, src } => {
                 let dst = self.location(dst).unwrap();
@@ -682,18 +681,38 @@ impl Interpreter {
                     UnaryOperation::Neg => match right {
                         Value::Int(right) => Value::Int(-right),
                         Value::Float(right) => Value::Float(-right),
-                        right => return Err(RunTimeError {
-                            err: RunTimeErrorKind::IllegalUnaryOperation {
-                                op,
-                                right: right.typ(),
-                            },
-                            ln,
-                        })
-                    }
+                        right => {
+                            return Err(RunTimeError {
+                                err: RunTimeErrorKind::IllegalUnaryOperation {
+                                    op,
+                                    right: right.typ(),
+                                },
+                                ln,
+                            })
+                        }
+                    },
                     UnaryOperation::Not => Value::Bool(!bool::from(right)),
                 };
             }
         }
-        Ok(false)
+        Ok(None)
+    }
+    pub fn run(&mut self) -> Result<Option<Value>, RunTimeError> {
+        let offset = self.call_stack.len();
+        if offset == 0 {
+            return Ok(None);
+        }
+        loop {
+            let return_call = self.step()?;
+            if self.call_stack.len() == offset {
+                if let Some(value) = return_call {
+                    return Ok(value);
+                }
+            }
+            if self.call_stack.len() < offset {
+                break;
+            }
+        }
+        Ok(None)
     }
 }
