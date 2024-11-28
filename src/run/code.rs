@@ -124,7 +124,7 @@ impl From<Location> for Source {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Closure {
     pub code: Vec<ByteCode>,
     pub lines: Vec<usize>,
