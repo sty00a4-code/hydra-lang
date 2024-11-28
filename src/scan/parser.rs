@@ -340,6 +340,8 @@ impl Parsable for Statement {
                 parser.expect(Token::ParanRight)?;
                 let body = Block::parse(parser)?;
                 pos.extend(&body.pos);
+                parser.expect_eol()?;
+                parser.advance_line();
                 Ok(Located::new(
                     Self::Fn {
                         name,
