@@ -340,7 +340,15 @@ impl Parsable for Statement {
                 parser.expect(Token::ParanRight)?;
                 let body = Block::parse(parser)?;
                 pos.extend(&body.pos);
-                Ok(Located::new(Self::Fn { name, params, varargs, body }, pos))
+                Ok(Located::new(
+                    Self::Fn {
+                        name,
+                        params,
+                        varargs,
+                        body,
+                    },
+                    pos,
+                ))
             }
             token => Err(Located::new(
                 ParseError::UnexpectedToken(token),
