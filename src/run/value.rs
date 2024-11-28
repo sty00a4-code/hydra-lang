@@ -1,11 +1,10 @@
+use super::code::Closure;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fmt::{Debug, Display},
     rc::Rc,
     sync::{Arc, Mutex},
 };
-
-use super::{code::Closure, typ::Type};
 
 pub type Pointer<T> = Arc<Mutex<T>>;
 
@@ -21,15 +20,19 @@ pub enum Value {
     Vector(Pointer<Vec<Self>>),
     Tuple(Pointer<[Self]>),
     Map(Pointer<HashMap<String, Self>>),
-    Set(Pointer<HashSet<Self>>),
     Fn(FnKind),
     NativeObject(Pointer<dyn NativeObject>),
-    Type(Type),
 }
+unsafe impl Send for Value {}
+unsafe impl Sync for Value {}
 #[derive(Debug, Clone)]
 pub enum FnKind {
-    Function(Rc<Closure>),
+    Function(Pointer<Function>),
     Native(Rc<NativeFn>),
+}
+#[derive(Debug, Clone)]
+pub struct Function {
+    pub closure: Rc<Closure>,
 }
 pub type NativeFn = ();
 pub trait NativeObject {
@@ -37,6 +40,58 @@ pub trait NativeObject {
     fn get(&self, key: &str) -> Option<Value>;
 }
 
+impl Value {
+    pub fn typ(&self) -> &'static str {
+        match self {
+            Value::Null => "null",
+            Value::Int(_) => "int",
+            Value::Float(_) => "float",
+            Value::Bool(_) => "bool",
+            Value::Char(_) => "char",
+            Value::String(_) => "str",
+            Value::Vector(_) => "vec",
+            Value::Tuple(_) => "tuple",
+            Value::Map(_) => "map",
+            Value::Fn(_) => "fn",
+            Value::NativeObject(arc) => arc.lock().unwrap().typ(),
+        }
+    }
+}
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Null, Self::Null) => true,
+            (Self::Int(left), Self::Int(right)) => left == right,
+            (Self::Float(left), Self::Float(right)) => left == right,
+            (Self::Int(left), Self::Float(right)) => (*left as f64) == *right,
+            (Self::Float(left), Self::Int(right)) => *left == (*right as f64),
+            (Self::Bool(left), Self::Bool(right)) => left == right,
+            (Self::Char(left), Self::Char(right)) => left == right,
+            (Self::String(left), Self::String(right)) => left == right,
+            (Self::Vector(left), Self::Vector(right)) => Arc::as_ptr(left) == Arc::as_ptr(right),
+            (Self::Tuple(left), Self::Tuple(right)) => {
+                let left = left.lock().unwrap();
+                let right = right.lock().unwrap();
+                for (idx, left) in left.iter().enumerate() {
+                    if !right.get(idx).map(|v| left == v).unwrap_or_default() {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Self::Fn(FnKind::Function(left)), Self::Fn(FnKind::Function(right))) => {
+                Arc::as_ptr(left) == Arc::as_ptr(right)
+            }
+            (Self::Fn(FnKind::Native(left)), Self::Fn(FnKind::Native(right))) => {
+                Rc::as_ptr(left) == Rc::as_ptr(right)
+            }
+            (Self::NativeObject(left), Self::NativeObject(right)) => {
+                std::ptr::addr_eq(Arc::as_ptr(left), Arc::as_ptr(right))
+            }
+            _ => false,
+        }
+    }
+}
 impl Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -47,10 +102,11 @@ impl Debug for Value {
             Value::Char(v) => write!(f, "{v:?}"),
             Value::String(v) => write!(f, "{v:?}"),
             Value::Vector(arc) => write!(f, "{:?}", arc.lock().unwrap()),
-            Value::Tuple(arc) => write!(
+            Value::Tuple(values) => write!(
                 f,
                 "({})",
-                arc.lock()
+                values
+                    .lock()
                     .unwrap()
                     .iter()
                     .map(|v| format!("{v:?}"))
@@ -67,22 +123,11 @@ impl Debug for Value {
                     .collect::<Vec<String>>()
                     .join(", ")
             ),
-            Value::Set(arc) => write!(
-                f,
-                "{{{}}}",
-                arc.lock()
-                    .unwrap()
-                    .iter()
-                    .map(|v| format!("{v:?}"))
-                    .collect::<Vec<String>>()
-                    .join(", ")
-            ),
-            Value::Fn(FnKind::Function(rc)) => write!(f, "fn:{:08x?}", Rc::as_ptr(rc)),
+            Value::Fn(FnKind::Function(arc)) => write!(f, "fn:{:08x?}", Arc::as_ptr(arc)),
             Value::Fn(FnKind::Native(rc)) => write!(f, "fn:{:08x?}", Rc::as_ptr(rc)),
             Value::NativeObject(arc) => {
                 write!(f, "{}:{:08x?}", arc.lock().unwrap().typ(), Arc::as_ptr(arc))
             }
-            Value::Type(typ) => write!(f, "{typ:?}"),
         }
     }
 }
@@ -96,49 +141,20 @@ impl Display for Value {
         }
     }
 }
-
-impl Value {
-    pub fn check(&self, typ: &Type) -> bool {
-        match typ {
-            Type::Null => matches!(self, Self::Null),
-            Type::Int => matches!(self, Self::Int(_)),
-            Type::Float => matches!(self, Self::Float(_)),
-            Type::Bool => matches!(self, Self::Bool(_)),
-            Type::Char => matches!(self, Self::Char(_)),
-            Type::String => matches!(self, Self::String(_)),
-            Type::Vector(sub) => {
-                if let Self::Vector(arc) = self {
-                    if let Some(sub) = sub {
-                        arc.lock().unwrap().iter().all(|v| v.check(sub.as_ref()))
-                    } else {
-                        true
-                    }
-                } else {
-                    false
-                }
-            }
-            Type::Tuple(subs) => {
-                if let Self::Tuple(arc) = self {
-                    if let Some(subs) = subs {
-                        arc.lock()
-                            .unwrap()
-                            .iter()
-                            .zip(subs.iter())
-                            .all(|(v, t)| v.check(t))
-                    } else {
-                        true
-                    }
-                } else {
-                    false
-                }
-            }
-            Type::Map(map_type) => todo!(),
-            Type::Set(_) => todo!(),
-            Type::Fn(fn_type) => todo!(),
-            Type::NativeObject(_) => todo!(),
-            Type::Type => todo!(),
-            Type::Many(_) => todo!(),
-            Type::Maybe(_) => todo!(),
+impl From<Value> for bool {
+    fn from(value: Value) -> Self {
+        match value {
+            Value::Null => false,
+            Value::Int(v) => v == 0,
+            Value::Float(v) => v == 0.0,
+            Value::Bool(v) => v,
+            Value::Char(v) => v as u8 == 0,
+            Value::String(v) => !v.is_empty(),
+            Value::Vector(_) => true,
+            Value::Tuple(_) => true,
+            Value::Map(_) => true,
+            Value::Fn(_) => true,
+            Value::NativeObject(_) => true,
         }
     }
 }

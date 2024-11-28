@@ -17,6 +17,7 @@ pub enum ByteCode {
     },
     JumpIfSome {
         negativ: bool,
+        src: Source,
         addr: usize,
     },
 
@@ -86,6 +87,9 @@ pub enum BinaryOperation {
     GE,
     And,
     Or,
+    Is,
+    In,
+    As,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOperation {
@@ -98,7 +102,7 @@ pub enum Source {
     #[default]
     Null,
     Bool(bool),
-    Char(u8),
+    Char(char),
     Int(i64),
     Float(f64),
     Register(u8),
@@ -123,7 +127,10 @@ impl From<Location> for Source {
 #[derive(Debug, Clone)]
 pub struct Closure {
     pub code: Vec<ByteCode>,
+    pub lines: Vec<usize>,
+    pub parameters: u8,
     pub registers: u8,
+    pub varargs: bool,
     pub closures: Vec<Rc<Closure>>,
     pub constants: Vec<Value>,
 }

@@ -51,6 +51,9 @@ pub enum BinaryOperator {
     GreaterEqual,
     And,
     Or,
+    Is,
+    In,
+    As,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOperator {

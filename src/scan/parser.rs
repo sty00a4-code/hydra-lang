@@ -494,10 +494,13 @@ impl BinaryOperator {
             Self::Less,
             Self::GreaterEqual,
             Self::LessEqual,
+            Self::Is,
+            Self::In,
         ],
         &[Self::Plus, Self::Minus],
         &[Self::Star, Self::Slash, Self::Percent],
         &[Self::Exponent],
+        &[Self::As],
     ];
     pub fn layer(layer: usize) -> Option<&'static [Self]> {
         Self::LAYERS.get(layer).copied()
@@ -518,6 +521,9 @@ impl BinaryOperator {
             Token::GreaterEqual => Some(Self::GreaterEqual),
             Token::And => Some(Self::And),
             Token::Or => Some(Self::Or),
+            Token::Is => Some(Self::Is),
+            Token::In => Some(Self::In),
+            Token::As => Some(Self::As),
             _ => None,
         }
     }
