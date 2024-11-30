@@ -18,7 +18,7 @@ pub enum Value {
     Char(char),
     String(String),
     Vector(Pointer<Vec<Self>>),
-    Tuple(Pointer<[Self]>),
+    Tuple(Pointer<Box<[Self]>>),
     Map(Pointer<HashMap<String, Self>>),
     Fn(FnKind),
     NativeObject(Pointer<dyn NativeObject>),

@@ -1,3 +1,4 @@
+#![feature(if_let_guard)]
 use std::error::Error;
 
 use scan::{

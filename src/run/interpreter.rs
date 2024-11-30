@@ -289,7 +289,7 @@ impl Interpreter {
                         field => {
                             return Err(RunTimeError {
                                 err: RunTimeErrorKind::InvalidField {
-                                    head: Value::Tuple(Arc::new(Mutex::new([]))).typ(),
+                                    head: Value::Tuple(Arc::new(Mutex::new(Box::new([])))).typ(),
                                     field: field.typ(),
                                 },
                                 ln,
@@ -412,6 +412,14 @@ impl Interpreter {
                     values.push(self.source(Source::Register(reg)).unwrap_or_default());
                 }
                 *dst.lock().unwrap() = Value::Vector(Arc::new(Mutex::new(values)));
+            }
+            ByteCode::Tuple { dst, start, amount } => {
+                let dst = self.location(dst).unwrap();
+                let mut values = vec![];
+                for reg in start..(start + amount) {
+                    values.push(self.source(Source::Register(reg)).unwrap_or_default());
+                }
+                *dst.lock().unwrap() = Value::Tuple(Arc::new(Mutex::new(values.into_boxed_slice())));
             }
             ByteCode::Map { dst } => {
                 let dst = self.location(dst).unwrap();

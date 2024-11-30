@@ -1,3 +1,5 @@
+use crate::scan::ast::{BinaryOperator, UnaryOperator};
+
 use super::value::Value;
 use std::rc::Rc;
 
@@ -51,6 +53,11 @@ pub enum ByteCode {
         start: u8,
         amount: u8,
     },
+    Tuple {
+        dst: Location,
+        start: u8,
+        amount: u8,
+    },
     Map {
         dst: Location,
     },
@@ -91,6 +98,37 @@ pub enum BinaryOperation {
     In,
     As,
 }
+impl From<BinaryOperator> for BinaryOperation {
+    fn from(value: BinaryOperator) -> Self {
+        match value {
+            BinaryOperator::Plus => Self::Add,
+            BinaryOperator::Minus => Self::Sub,
+            BinaryOperator::Star => Self::Mul,
+            BinaryOperator::Slash => Self::Div,
+            BinaryOperator::Percent => Self::Mod,
+            BinaryOperator::Exponent => Self::Pow,
+            BinaryOperator::EqualEqual => Self::EE,
+            BinaryOperator::ExclamationEqual => Self::NE,
+            BinaryOperator::Less => Self::LT,
+            BinaryOperator::Greater => Self::GT,
+            BinaryOperator::LessEqual => Self::LE,
+            BinaryOperator::GreaterEqual => Self::GE,
+            BinaryOperator::And => Self::And,
+            BinaryOperator::Or => Self::Or,
+            BinaryOperator::Is => Self::Is,
+            BinaryOperator::In => Self::In,
+            BinaryOperator::As => Self::As,
+        }
+    }
+}
+impl From<UnaryOperator> for UnaryOperation {
+    fn from(value: UnaryOperator) -> Self {
+        match value {
+            UnaryOperator::Minus => Self::Neg,
+            UnaryOperator::Not => Self::Not,
+        }
+    }
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOperation {
     Neg,
@@ -114,6 +152,15 @@ pub enum Source {
 pub enum Location {
     Register(u8),
     Global(u16),
+}
+impl Location {
+    pub fn eq_source(&self, other: &Source) -> bool {
+        match (self, other) {
+            (Self::Register(loc), Source::Register(src)) => loc == src,
+            (Self::Global(loc), Source::Global(src)) => loc == src,
+            _ => false,
+        }
+    }
 }
 impl From<Location> for Source {
     fn from(value: Location) -> Self {

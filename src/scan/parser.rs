@@ -197,13 +197,20 @@ impl Parsable for Statement {
                 index,
             } = parser.expect_any()?;
             return match token {
-                Token::Equal => {
+                token if let Some(op) = AssignOperator::token(&token) => {
                     let expr = Expression::parse(parser)?;
                     let mut pos = path.pos.clone();
                     pos.extend(&expr.pos);
                     parser.expect_eol()?;
                     parser.advance_line();
-                    Ok(Located::new(Self::Assign { path, expr }, pos))
+                    Ok(Located::new(
+                        Self::Assign {
+                            op,
+                            path,
+                            expr,
+                        },
+                        pos,
+                    ))
                 }
                 Token::ParanLeft => {
                     let mut pos = path.pos.clone();
@@ -356,6 +363,20 @@ impl Parsable for Statement {
                 ParseError::UnexpectedToken(token),
                 Position::new(parser.ln()..parser.ln(), index),
             )),
+        }
+    }
+}
+impl AssignOperator {
+    pub fn token(token: &Token) -> Option<Self> {
+        match token {
+            Token::Equal => Some(Self::None),
+            Token::PlusEqual => Some(Self::Plus),
+            Token::MinusEqual => Some(Self::Minus),
+            Token::StarEqual => Some(Self::Star),
+            Token::SlashEqual => Some(Self::Slash),
+            Token::PercentEqual => Some(Self::Percent),
+            Token::ExponentEqual => Some(Self::Exponent),
+            _ => None,
         }
     }
 }

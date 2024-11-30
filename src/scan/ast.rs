@@ -15,6 +15,7 @@ pub enum Statement {
         expr: Located<Expression>,
     },
     Assign {
+        op: AssignOperator,
         path: Located<Path>,
         expr: Located<Expression>,
     },
@@ -34,6 +35,53 @@ pub enum Statement {
         args: Vec<Located<Expression>>,
     },
     Return(Option<Located<Expression>>),
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AssignOperator {
+    #[default]
+    None,
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Percent,
+    Exponent,
+}
+impl TryInto<BinaryOperator> for AssignOperator {
+    type Error = ();
+    fn try_into(self) -> Result<BinaryOperator, Self::Error> {
+        match self {
+            AssignOperator::None => Err(()),
+            AssignOperator::Plus => Ok(BinaryOperator::Plus),
+            AssignOperator::Minus => Ok(BinaryOperator::Minus),
+            AssignOperator::Star => Ok(BinaryOperator::Star),
+            AssignOperator::Slash => Ok(BinaryOperator::Slash),
+            AssignOperator::Percent => Ok(BinaryOperator::Percent),
+            AssignOperator::Exponent => Ok(BinaryOperator::Exponent),
+        }
+    }
+}
+#[derive(Debug, Clone, PartialEq)]
+pub enum Expression {
+    Atom(Atom),
+    Call {
+        head: Box<Located<Self>>,
+        args: Vec<Located<Expression>>,
+    },
+    SelfCall {
+        head: Box<Located<Self>>,
+        field: Located<String>,
+        args: Vec<Located<Expression>>,
+    },
+    Binary {
+        op: BinaryOperator,
+        left: Box<Located<Self>>,
+        right: Box<Located<Self>>,
+    },
+    Unary {
+        op: UnaryOperator,
+        right: Box<Located<Self>>,
+    },
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinaryOperator {
@@ -59,28 +107,6 @@ pub enum BinaryOperator {
 pub enum UnaryOperator {
     Minus,
     Not,
-}
-#[derive(Debug, Clone, PartialEq)]
-pub enum Expression {
-    Atom(Atom),
-    Call {
-        head: Box<Located<Self>>,
-        args: Vec<Located<Expression>>,
-    },
-    SelfCall {
-        head: Box<Located<Self>>,
-        field: Located<String>,
-        args: Vec<Located<Expression>>,
-    },
-    Binary {
-        op: BinaryOperator,
-        left: Box<Located<Self>>,
-        right: Box<Located<Self>>,
-    },
-    Unary {
-        op: UnaryOperator,
-        right: Box<Located<Self>>,
-    },
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum Atom {

@@ -163,6 +163,7 @@ pub fn parser_stat_assign() {
                 stats: vec![
                     Located::new(
                         Statement::Assign {
+                            op: Default::default(),
                             path: Located::new(Path::Ident("a".to_string()), Default::default()),
                             expr: Located::new(Expression::Atom(Atom::Int(1)), Default::default()),
                         },
@@ -170,6 +171,7 @@ pub fn parser_stat_assign() {
                     ),
                     Located::new(
                         Statement::Assign {
+                            op: Default::default(),
                             path: Located::new(Path::Ident("b".to_string()), Default::default()),
                             expr: Located::new(Expression::Atom(Atom::Int(2)), Default::default()),
                         },
@@ -177,6 +179,7 @@ pub fn parser_stat_assign() {
                     ),
                     Located::new(
                         Statement::Assign {
+                            op: Default::default(),
                             path: Located::new(
                                 Path::Field {
                                     head: Box::new(Located::new(
