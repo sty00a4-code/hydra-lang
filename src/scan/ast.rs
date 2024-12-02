@@ -137,7 +137,7 @@ pub enum Path {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Parameter {
     Ident(String),
-    Tuple(Vec<Located<Self>>),
-    Vector(Vec<Located<Self>>),
-    Map(Vec<(Located<String>, Option<Located<Self>>)>),
+    Tuple(Vec<Located<String>>),
+    Vector(Vec<Located<String>>),
+    Map(Vec<Located<String>>),
 }

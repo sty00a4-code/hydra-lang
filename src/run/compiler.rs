@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use crate::scan::{
     ast::{
@@ -44,10 +44,16 @@ impl Compiler {
     pub fn frame_mut(&mut self) -> Option<&mut Frame> {
         self.frame_stack.last_mut()
     }
-    pub fn constant(&mut self, value: Value) -> usize {
+    pub fn new_constant(&mut self, value: Value) -> u16 {
         let frame = self.frame_mut().unwrap();
-        let addr = frame.closure.constants.len();
+        let addr = frame.closure.constants.len() as u16;
         frame.closure.constants.push(value);
+        addr
+    }
+    pub fn new_closure(&mut self, closure: Rc<Closure>) -> u16 {
+        let frame = self.frame_mut().unwrap();
+        let addr = frame.closure.closures.len() as u16;
+        frame.closure.closures.push(closure);
         addr
     }
     pub fn write(&mut self, bytecode: ByteCode, ln: usize) -> usize {
@@ -97,9 +103,22 @@ impl Frame {
         let reg = self.registers;
         self.registers += 1;
         if self.max_registers < self.registers {
-            self.max_registers = self.registers
+            self.max_registers = self.registers;
+            self.closure.registers = self.max_registers;
         }
         reg
+    }
+    pub fn alloc_registers(&mut self, amount: u8) -> Vec<u8> {
+        let mut regs = vec![];
+        for offset in 0..amount {
+            regs.push(self.registers + offset);
+        }
+        self.registers += amount;
+        if self.max_registers < self.registers {
+            self.max_registers = self.registers;
+            self.closure.registers = self.max_registers;
+        }
+        regs
     }
     pub fn get_local(&self, name: &str) -> Option<u8> {
         for scope in self.scopes.iter().rev() {
@@ -109,13 +128,15 @@ impl Frame {
         }
         None
     }
+    pub fn set_local(&mut self, name: String, register: u8) {
+        self.scope_mut().unwrap().locals.insert(name, register);
+    }
     pub fn new_local(&mut self, name: String) -> u8 {
         if let Some(register) = self.get_local(&name) {
             return register;
         }
         let register = self.new_register();
-        self.scope_mut()
-            .and_then(|scope| scope.locals.insert(name, register));
+        self.set_local(name, register);
         register
     }
 }
@@ -197,16 +218,159 @@ impl Compilable for Located<Statement> {
                 body,
             } => {
                 let dst = Location::Register(compiler.frame_mut().unwrap().new_local(name));
-                for Located {
-                    value: param,
-                    pos: param_pos,
-                } in params
+                compiler.push_frame();
                 {
-                    todo!()
+                    compiler
+                        .frame_mut()
+                        .unwrap()
+                        .alloc_registers(params.len() as u8);
+                    if let Some(Located {
+                        value: ident,
+                        pos: _,
+                    }) = varargs
+                    {
+                        compiler.frame_mut().unwrap().new_local(ident);
+                    }
+                    for (
+                        reg,
+                        Located {
+                            value: param,
+                            pos: param_pos,
+                        },
+                    ) in params.into_iter().enumerate()
+                    {
+                        let param_ln = param_pos.ln.start;
+                        match param {
+                            Parameter::Ident(ident) => {
+                                compiler.frame_mut().unwrap().closure.parameters += 1;
+                                compiler.frame_mut().unwrap().set_local(ident, reg as u8);
+                            }
+                            Parameter::Tuple(params) | Parameter::Vector(params) => {
+                                for (
+                                    idx,
+                                    Located {
+                                        value: ident,
+                                        pos: _,
+                                    },
+                                ) in params.into_iter().enumerate()
+                                {
+                                    compiler.frame_mut().unwrap().closure.parameters += 1;
+                                    let dst = Location::Register(
+                                        compiler.frame_mut().unwrap().new_local(ident),
+                                    );
+                                    compiler.write(
+                                        ByteCode::Field {
+                                            dst,
+                                            head: Source::Register(reg as u8),
+                                            field: Source::Int(idx as i64),
+                                        },
+                                        param_ln,
+                                    );
+                                }
+                            }
+                            Parameter::Map(params) => {
+                                for Located {
+                                    value: ident,
+                                    pos: _,
+                                } in params
+                                {
+                                    compiler.frame_mut().unwrap().closure.parameters += 1;
+                                    let dst = Location::Register(
+                                        compiler.frame_mut().unwrap().new_local(ident.clone()),
+                                    );
+                                    let ident = compiler.new_constant(Value::String(ident));
+                                    compiler.write(
+                                        ByteCode::Field {
+                                            dst,
+                                            head: Source::Register(reg as u8),
+                                            field: Source::Constant(ident),
+                                        },
+                                        param_ln,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    body.compile(compiler);
                 }
+                let Frame { closure, .. } = compiler.pop_frame().unwrap();
+                let addr = compiler.new_closure(Rc::new(closure));
+                compiler.write(ByteCode::Fn { dst, addr }, ln);
             }
-            Statement::Call { head, args } => todo!(),
-            Statement::SelfCall { head, field, args } => todo!(),
+            Statement::Call { head, args } => {
+                let func = Source::from(head.compile(compiler));
+                compiler.frame_mut().unwrap().push_scope();
+                let start = compiler.frame().unwrap().registers;
+                let amount = args.len() as u8;
+                {
+                    let registers = compiler.frame_mut().unwrap().alloc_registers(amount);
+                    for (arg, reg) in args.into_iter().zip(registers) {
+                        let ln = arg.pos.ln.start;
+                        let arg = arg.compile(compiler);
+                        compiler.move_checked(Location::Register(reg), arg, ln);
+                    }
+                }
+                compiler.frame_mut().unwrap().pop_scope();
+                compiler.write(
+                    ByteCode::Call {
+                        dst: None,
+                        func,
+                        start,
+                        amount,
+                    },
+                    ln,
+                );
+            }
+            Statement::SelfCall {
+                head,
+                field:
+                    Located {
+                        value: field,
+                        pos: field_pos,
+                    },
+                args,
+            } => {
+                let head_ln = head.pos.ln.start;
+                let head = Source::from(head.compile(compiler));
+                let func = {
+                    let dst = compiler.frame_mut().unwrap().new_register();
+                    let field = compiler.new_constant(Value::String(field));
+                    compiler.write(
+                        ByteCode::Field {
+                            dst: Location::Register(dst),
+                            head,
+                            field: Source::Constant(field),
+                        },
+                        field_pos.ln.start,
+                    );
+                    Source::Register(dst)
+                };
+                {
+                    let dst = compiler.frame_mut().unwrap().new_register();
+                    compiler.move_checked(Location::Register(dst), head, head_ln);
+                }
+                compiler.frame_mut().unwrap().push_scope();
+                let start = compiler.frame().unwrap().registers;
+                let amount = args.len() as u8;
+                {
+                    let registers = compiler.frame_mut().unwrap().alloc_registers(amount);
+                    for (arg, reg) in args.into_iter().zip(registers) {
+                        let ln = arg.pos.ln.start;
+                        let arg = arg.compile(compiler);
+                        compiler.move_checked(Location::Register(reg), arg, ln);
+                    }
+                }
+                compiler.frame_mut().unwrap().pop_scope();
+                compiler.write(
+                    ByteCode::Call {
+                        dst: None,
+                        func,
+                        start,
+                        amount,
+                    },
+                    ln,
+                );
+            }
             Statement::Return(Some(expr)) => {
                 let src = expr.compile(compiler);
                 compiler.write(ByteCode::Return { src: Some(src) }, ln);
@@ -227,8 +391,84 @@ impl Compilable for Located<Expression> {
         let ln = pos.ln.start;
         match expr {
             Expression::Atom(atom) => Located::new(atom, pos).compile(compiler),
-            Expression::Call { head, args } => todo!(),
-            Expression::SelfCall { head, field, args } => todo!(),
+            Expression::Call { head, args } => {
+                let func = head.compile(compiler);
+                compiler.frame_mut().unwrap().push_scope();
+                let start = compiler.frame().unwrap().registers;
+                let amount = args.len() as u8;
+                {
+                    let registers = compiler.frame_mut().unwrap().alloc_registers(amount);
+                    for (arg, reg) in args.into_iter().zip(registers) {
+                        let ln = arg.pos.ln.start;
+                        let arg = arg.compile(compiler);
+                        compiler.move_checked(Location::Register(reg), arg, ln);
+                    }
+                }
+                compiler.frame_mut().unwrap().pop_scope();
+                let dst = compiler.frame_mut().unwrap().new_register();
+                compiler.write(
+                    ByteCode::Call {
+                        dst: Some(Location::Register(dst)),
+                        func,
+                        start,
+                        amount,
+                    },
+                    ln,
+                );
+                Source::Register(dst)
+            }
+            Expression::SelfCall {
+                head,
+                field:
+                    Located {
+                        value: field,
+                        pos: field_pos,
+                    },
+                args,
+            } => {
+                let head_ln = head.pos.ln.start;
+                let head = head.compile(compiler);
+                let func = {
+                    let dst = compiler.frame_mut().unwrap().new_register();
+                    let field = compiler.new_constant(Value::String(field));
+                    compiler.write(
+                        ByteCode::Field {
+                            dst: Location::Register(dst),
+                            head,
+                            field: Source::Constant(field),
+                        },
+                        field_pos.ln.start,
+                    );
+                    Source::Register(dst)
+                };
+                {
+                    let dst = compiler.frame_mut().unwrap().new_register();
+                    compiler.move_checked(Location::Register(dst), head, head_ln);
+                }
+                compiler.frame_mut().unwrap().push_scope();
+                let start = compiler.frame().unwrap().registers;
+                let amount = args.len() as u8;
+                {
+                    let registers = compiler.frame_mut().unwrap().alloc_registers(amount);
+                    for (arg, reg) in args.into_iter().zip(registers) {
+                        let ln = arg.pos.ln.start;
+                        let arg = arg.compile(compiler);
+                        compiler.move_checked(Location::Register(reg), arg, ln);
+                    }
+                }
+                compiler.frame_mut().unwrap().pop_scope();
+                let dst = compiler.frame_mut().unwrap().new_register();
+                compiler.write(
+                    ByteCode::Call {
+                        dst: Some(Location::Register(dst)),
+                        func,
+                        start,
+                        amount,
+                    },
+                    ln,
+                );
+                Source::Register(dst)
+            }
             Expression::Binary { op, left, right } => {
                 let left = left.compile(compiler);
                 let right = right.compile(compiler);
@@ -268,11 +508,11 @@ impl Compilable for Located<Atom> {
         match expr {
             Atom::Path(path) => Located::new(path, pos).compile(compiler).into(),
             Atom::Null => Source::Null,
-            Atom::Int(v) => Source::Constant(compiler.constant(Value::Int(v)) as u16),
-            Atom::Float(v) => Source::Constant(compiler.constant(Value::Float(v)) as u16),
-            Atom::Bool(v) => Source::Constant(compiler.constant(Value::Bool(v)) as u16),
-            Atom::Char(v) => Source::Constant(compiler.constant(Value::Char(v)) as u16),
-            Atom::String(v) => Source::Constant(compiler.constant(Value::String(v)) as u16),
+            Atom::Int(v) => Source::Int(v),
+            Atom::Float(v) => Source::Float(v),
+            Atom::Bool(v) => Source::Bool(v),
+            Atom::Char(v) => Source::Char(v),
+            Atom::String(v) => Source::Constant(compiler.new_constant(Value::String(v))),
             Atom::Tuple(exprs) => {
                 let dst = compiler.frame_mut().unwrap().new_register();
                 let amount = exprs.len() as u8;
@@ -334,7 +574,7 @@ impl Compilable for Located<Atom> {
                 {
                     let ln = expr.pos.ln.start;
                     let src = expr.compile(compiler);
-                    let field = Source::Constant(compiler.constant(Value::String(field)) as u16);
+                    let field = Source::Constant(compiler.new_constant(Value::String(field)));
                     compiler.write(
                         ByteCode::SetField {
                             head: Source::Register(dst),
@@ -354,7 +594,53 @@ impl Compilable for Located<Atom> {
 impl Compilable for Located<Path> {
     type Output = Location;
     fn compile(self, compiler: &mut Compiler) -> Self::Output {
-        todo!()
+        let Located { value: path, pos } = self;
+        let ln = pos.ln.start;
+        match path {
+            Path::Ident(ident) => {
+                if let Some(reg) = compiler.frame().unwrap().get_local(&ident) {
+                    Location::Register(reg)
+                } else {
+                    let addr = compiler.new_constant(Value::String(ident));
+                    Location::Global(addr)
+                }
+            }
+            Path::Field {
+                head,
+                field:
+                    Located {
+                        value: field,
+                        pos: _,
+                    },
+            } => {
+                let head = head.compile(compiler);
+                let field = compiler.new_constant(Value::String(field));
+                let dst = compiler.frame_mut().unwrap().new_register();
+                compiler.write(
+                    ByteCode::Field {
+                        dst: Location::Register(dst),
+                        head: head.into(),
+                        field: Source::Constant(field),
+                    },
+                    ln,
+                );
+                Location::Register(dst)
+            }
+            Path::Index { head, index } => {
+                let head = head.compile(compiler);
+                let field = index.compile(compiler);
+                let dst = compiler.frame_mut().unwrap().new_register();
+                compiler.write(
+                    ByteCode::Field {
+                        dst: Location::Register(dst),
+                        head: head.into(),
+                        field,
+                    },
+                    ln,
+                );
+                Location::Register(dst)
+            }
+        }
     }
 }
 impl Located<Parameter> {
@@ -362,7 +648,9 @@ impl Located<Parameter> {
         let Located { value: param, pos } = self;
         let ln = pos.ln.start;
         match param {
-            Parameter::Ident(ident) => todo!(),
+            Parameter::Ident(ident) => {
+                Location::Register(compiler.frame_mut().unwrap().new_local(ident))
+            }
             Parameter::Tuple(vec) => todo!(),
             Parameter::Vector(vec) => todo!(),
             Parameter::Map(vec) => todo!(),

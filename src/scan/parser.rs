@@ -414,7 +414,7 @@ impl Parsable for Parameter {
             let Indexed { value: _, index } = parser.expect(Token::ParanLeft)?;
             let mut pos = Position::new(parser.ln()..parser.ln(), index);
             let mut params = vec![];
-            let param = Parameter::parse(parser)?;
+            let param = Parameter::parse_ident(parser)?;
             params.push(param);
             while let Some(Indexed { value: token, .. }) = parser.peek() {
                 if token == &Token::ParanRight {
@@ -428,7 +428,7 @@ impl Parsable for Parameter {
                 {
                     break;
                 }
-                let param = Parameter::parse(parser)?;
+                let param = Parameter::parse_ident(parser)?;
                 params.push(param);
             }
             pos.col.end = parser.expect(Token::ParanRight)?.index.end;
@@ -442,7 +442,7 @@ impl Parsable for Parameter {
             let Indexed { value: _, index } = parser.expect(Token::BracketLeft)?;
             let mut pos = Position::new(parser.ln()..parser.ln(), index);
             let mut params = vec![];
-            let param = Parameter::parse(parser)?;
+            let param = Parameter::parse_ident(parser)?;
             params.push(param);
             while let Some(Indexed { value: token, .. }) = parser.peek() {
                 if token == &Token::BracketRight {
@@ -456,7 +456,7 @@ impl Parsable for Parameter {
                 {
                     break;
                 }
-                let param = Parameter::parse(parser)?;
+                let param = Parameter::parse_ident(parser)?;
                 params.push(param);
             }
             pos.col.end = parser.expect(Token::BracketRight)?.index.end;
@@ -471,15 +471,7 @@ impl Parsable for Parameter {
             let mut pos = Position::new(parser.ln()..parser.ln(), index);
             let mut params = vec![];
             let field = Parameter::parse_ident(parser)?;
-            let mut param = None;
-            if let Some(Indexed {
-                value: Token::Equal,
-                index: _,
-            }) = parser.peek()
-            {
-                param = Some(Parameter::parse(parser)?);
-            }
-            params.push((field, param));
+            params.push(field);
             while let Some(Indexed { value: token, .. }) = parser.peek() {
                 if token == &Token::BraceRight {
                     break;
@@ -493,15 +485,7 @@ impl Parsable for Parameter {
                     break;
                 }
                 let field = Parameter::parse_ident(parser)?;
-                let mut param = None;
-                if let Some(Indexed {
-                    value: Token::Equal,
-                    index: _,
-                }) = parser.peek()
-                {
-                    param = Some(Parameter::parse(parser)?);
-                }
-                params.push((field, param));
+                params.push(field);
             }
             pos.col.end = parser.expect(Token::BraceRight)?.index.end;
             return Ok(Located::new(Self::Map(params), pos));
