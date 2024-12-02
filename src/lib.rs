@@ -8,7 +8,6 @@ use run::{
     value::{Function, Value},
 };
 use scan::{
-    ast::Chunk,
     lexer::Lexer,
     parser::{Parsable, Parser},
     position::{Located, Position},
