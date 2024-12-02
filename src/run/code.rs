@@ -1,7 +1,7 @@
 use crate::scan::ast::{BinaryOperator, UnaryOperator};
 
 use super::value::Value;
-use std::rc::Rc;
+use std::{fmt::Display, rc::Rc};
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -98,6 +98,29 @@ pub enum BinaryOperation {
     In,
     As,
 }
+impl Display for BinaryOperation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BinaryOperation::Add => write!(f, "+"),
+            BinaryOperation::Sub => write!(f, "-"),
+            BinaryOperation::Mul => write!(f, "*"),
+            BinaryOperation::Div => write!(f, "/"),
+            BinaryOperation::Mod => write!(f, "%"),
+            BinaryOperation::Pow => write!(f, "^"),
+            BinaryOperation::EE => write!(f, "=="),
+            BinaryOperation::NE => write!(f, "!="),
+            BinaryOperation::LT => write!(f, "<"),
+            BinaryOperation::GT => write!(f, ">"),
+            BinaryOperation::LE => write!(f, "<="),
+            BinaryOperation::GE => write!(f, ">="),
+            BinaryOperation::And => write!(f, "and"),
+            BinaryOperation::Or => write!(f, "or"),
+            BinaryOperation::Is => write!(f, "is"),
+            BinaryOperation::In => write!(f, "in"),
+            BinaryOperation::As => write!(f, "as"),
+        }
+    }
+}
 impl From<BinaryOperator> for BinaryOperation {
     fn from(value: BinaryOperator) -> Self {
         match value {
@@ -133,6 +156,14 @@ impl From<UnaryOperator> for UnaryOperation {
 pub enum UnaryOperation {
     Neg,
     Not,
+}
+impl Display for UnaryOperation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnaryOperation::Neg => write!(f, "-"),
+            UnaryOperation::Not => write!(f, "not"),
+        }
+    }
 }
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Default)]

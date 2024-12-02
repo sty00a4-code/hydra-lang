@@ -3,11 +3,10 @@ use super::{
     value::{FnKind, Function, Pointer, Value},
 };
 use std::{
-    collections::HashMap,
-    rc::Rc,
-    sync::{Arc, Mutex},
+    collections::HashMap, error::Error, fmt::Display, rc::Rc, sync::{Arc, Mutex}
 };
 
+#[derive(Debug, Default)]
 pub struct Interpreter {
     pub call_stack: Vec<CallFrame>,
     pub globals: HashMap<String, Pointer<Value>>,
@@ -22,16 +21,11 @@ pub struct CallFrame {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RunTimeError {
-    err: RunTimeErrorKind,
-    ln: usize,
+    pub err: RunTimeErrorKind,
+    pub ln: usize,
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum RunTimeErrorKind {
-    InvalidBinary {
-        op: BinaryOperation,
-        left: Type,
-        right: Type,
-    },
     IndexOutOfRange {
         index: i64,
         len: usize,
@@ -53,6 +47,31 @@ pub enum RunTimeErrorKind {
     },
 }
 pub type Type = &'static str;
+impl Display for RunTimeErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RunTimeErrorKind::IndexOutOfRange { index, len } => {
+                write!(f, "index {index} is out of range of {len}")
+            }
+            RunTimeErrorKind::InvalidField { head, field } => {
+                write!(f, "invalid field operation on {head} with {field}")
+            }
+            RunTimeErrorKind::InvalidFieldHead(typ) => write!(f, "can't field into {typ}"),
+            RunTimeErrorKind::CannotCall(typ) => write!(f, "can't call {typ}"),
+            RunTimeErrorKind::IllegalBinaryOperation { op, left, right } => {
+                write!(
+                    f,
+                    "illegal binary operation {:?} on {left} with {right}",
+                    op.to_string()
+                )
+            }
+            RunTimeErrorKind::IllegalUnaryOperation { op, right } => {
+                write!(f, "illegal unary operation {:?} on {right}", op.to_string())
+            }
+        }
+    }
+}
+impl Error for RunTimeErrorKind {}
 
 impl Interpreter {
     pub fn call_frame(&self) -> Option<&CallFrame> {
@@ -138,7 +157,7 @@ impl Interpreter {
     }
     pub fn return_call(&mut self, src: Source) -> Option<Value> {
         let return_value = self.source(src);
-        let CallFrame { dst, .. } = self.call_stack.pop()?;
+        let CallFrame { dst, .. } = self.call_stack.pop().unwrap();
         if let Some(dst) = dst {
             let value = return_value.unwrap_or_default();
             if let Some(dst_value) = self.location(dst) {
@@ -419,7 +438,8 @@ impl Interpreter {
                 for reg in start..(start + amount) {
                     values.push(self.source(Source::Register(reg)).unwrap_or_default());
                 }
-                *dst.lock().unwrap() = Value::Tuple(Arc::new(Mutex::new(values.into_boxed_slice())));
+                *dst.lock().unwrap() =
+                    Value::Tuple(Arc::new(Mutex::new(values.into_boxed_slice())));
             }
             ByteCode::Map { dst } => {
                 let dst = self.location(dst).unwrap();
@@ -712,12 +732,12 @@ impl Interpreter {
         }
         loop {
             let return_call = self.step()?;
-            if self.call_stack.len() == offset {
+            if self.call_stack.len() < offset {
                 if let Some(value) = return_call {
                     return Ok(value);
                 }
             }
-            if self.call_stack.len() < offset {
+            if self.call_stack.len() < offset - 1 {
                 break;
             }
         }

@@ -182,9 +182,21 @@ impl Compilable for Located<Statement> {
         let Located { value: stat, pos } = self;
         let ln = pos.ln.start;
         match stat {
-            Statement::LetBinding { param, expr } => {
+            Statement::LetBinding {
+                param:
+                    Located {
+                        value: param,
+                        pos: _,
+                    },
+                expr,
+            } => {
                 let src = expr.compile(compiler);
-                let dst = param.compile(compiler, src);
+                let dst = match param {
+                    Parameter::Ident(ident) => {
+                        Location::Register(compiler.frame_mut().unwrap().new_local(ident))
+                    }
+                    _ => todo!(),
+                };
                 compiler.move_checked(dst, src, ln);
             }
             Statement::Assign { op, path, expr } => {
@@ -230,6 +242,7 @@ impl Compilable for Located<Statement> {
                     }) = varargs
                     {
                         compiler.frame_mut().unwrap().new_local(ident);
+                        compiler.frame_mut().unwrap().closure.varargs = true;
                     }
                     for (
                         reg,
@@ -640,20 +653,6 @@ impl Compilable for Located<Path> {
                 );
                 Location::Register(dst)
             }
-        }
-    }
-}
-impl Located<Parameter> {
-    fn compile(self, compiler: &mut Compiler, src: Source) -> Location {
-        let Located { value: param, pos } = self;
-        let ln = pos.ln.start;
-        match param {
-            Parameter::Ident(ident) => {
-                Location::Register(compiler.frame_mut().unwrap().new_local(ident))
-            }
-            Parameter::Tuple(vec) => todo!(),
-            Parameter::Vector(vec) => todo!(),
-            Parameter::Map(vec) => todo!(),
         }
     }
 }

@@ -1,7 +1,7 @@
 extern crate clap;
 extern crate hydra_lang;
 use clap::Parser;
-use hydra_lang::{compile, scan::{ast::Chunk, position::Located}};
+use hydra_lang::{run, scan::{ast::Chunk, position::Located}};
 use std::{fs, process::exit};
 
 fn main() {
@@ -13,13 +13,15 @@ fn main() {
                 exit(1)
             })
             .unwrap();
-        let closure = compile::<Chunk>(&text)
+        let value = run::<Chunk>(&text, vec![])
             .map_err(|Located { value: err, pos }| {
                 eprintln!("ERROR {path}:{}:{}: {err}", pos.ln.start + 1, pos.col.start + 1);
                 exit(1)
             })
             .unwrap();
-        dbg!(closure);
+        if let Some(value) = value {
+            println!("{value:?}");
+        }
     }
 }
 
