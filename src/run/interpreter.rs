@@ -3,7 +3,11 @@ use super::{
     value::{FnKind, Function, Pointer, Value},
 };
 use std::{
-    collections::HashMap, error::Error, fmt::Display, rc::Rc, sync::{Arc, Mutex}
+    collections::HashMap,
+    error::Error,
+    fmt::Display,
+    rc::Rc,
+    sync::{Arc, Mutex},
 };
 
 #[derive(Debug, Default)]
@@ -114,11 +118,16 @@ impl Interpreter {
                 call_frame.stack.get(reg as usize).cloned()
             }
             Location::Global(addr) => {
-                let call_frame = self.call_frame()?;
-                let Value::String(var) = call_frame.closure.constants.get(addr as usize)? else {
+                let Value::String(var) = self.call_frame()?.closure.constants.get(addr as usize).cloned()? else {
                     return None;
                 };
-                self.globals.get(var).cloned()
+                if let Some(value) = self.globals.get(&var).cloned() {
+                    Some(value)
+                } else {
+                    self.globals
+                        .insert(var.clone(), Arc::new(Mutex::new(Value::default())));
+                    self.globals.get(&var).cloned()
+                }
             }
         }
     }

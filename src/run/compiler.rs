@@ -12,6 +12,7 @@ use super::{
     value::Value,
 };
 
+#[derive(Debug, Default)]
 pub struct Compiler {
     pub frame_stack: Vec<Frame>,
 }
@@ -147,18 +148,18 @@ pub trait Compilable: Sized {
 }
 
 impl Compilable for Located<Chunk> {
-    type Output = Option<Source>;
+    type Output = Closure;
     fn compile(self, compiler: &mut Compiler) -> Self::Output {
-        let Located {
-            value: chunk,
-            pos: _,
-        } = self;
+        let Located { value: chunk, pos } = self;
+        let ln = pos.ln.end;
+        compiler.push_frame();
         for stat in chunk.stats {
-            if let Some(src) = stat.compile(compiler) {
-                return Some(src);
+            if stat.compile(compiler).is_some() {
+                break;
             }
         }
-        None
+        compiler.write(ByteCode::Return { src: None }, ln);
+        compiler.pop_frame().unwrap().closure
     }
 }
 impl Compilable for Located<Block> {

@@ -8,9 +8,7 @@ use run::{
     value::{Function, Value},
 };
 use scan::{
-    lexer::Lexer,
-    parser::{Parsable, Parser},
-    position::{Located, Position},
+    ast::Chunk, lexer::Lexer, parser::{Parsable, Parser}, position::{Located, Position}
 };
 
 #[cfg(test)]
@@ -30,7 +28,7 @@ where
     N::parse(&mut parser).map_err(|Located { value: err, pos }| Located::new(err.into(), pos))
 }
 
-pub fn compile<N: Parsable>(text: &str) -> Result<Closure, Located<Box<dyn Error>>>
+pub fn compile<N: Parsable>(text: &str) -> Result<<Located<N> as Compilable>::Output, Located<Box<dyn Error>>>
 where
     <N as scan::parser::Parsable>::Error: 'static,
     Located<N>: Compilable,
@@ -42,19 +40,15 @@ where
             ..Default::default()
         }],
     };
-    ast.compile(&mut compiler);
-    Ok(compiler.pop_frame().unwrap().closure)
+    Ok(ast.compile(&mut compiler))
 }
 
-pub fn run<N: Parsable>(
+pub fn run(
     text: &str,
     args: Vec<Value>,
 ) -> Result<Option<Value>, Located<Box<dyn Error>>>
-where
-    <N as scan::parser::Parsable>::Error: 'static,
-    Located<N>: Compilable,
 {
-    let closure = dbg!(compile::<N>(text)?);
+    let closure = compile::<Chunk>(text)?;
     let mut interpreter = Interpreter::default();
     interpreter
         .call(
