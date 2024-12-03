@@ -49,6 +49,7 @@ pub enum RunTimeErrorKind {
         op: UnaryOperation,
         right: Type,
     },
+    UnknownTypeCast(String),
     Custom(String),
 }
 pub type Type = &'static str;
@@ -73,6 +74,7 @@ impl Display for RunTimeErrorKind {
             RunTimeErrorKind::IllegalUnaryOperation { op, right } => {
                 write!(f, "illegal unary operation {:?} on {right}", op.to_string())
             }
+            RunTimeErrorKind::UnknownTypeCast(typ) => write!(f, "unknown type to cast to {typ:?}"),
             RunTimeErrorKind::Custom(err) => write!(f, "{err}"),
         }
     }

@@ -3,7 +3,11 @@ use super::{
     interpreter::{Interpreter, RunTimeError, RunTimeErrorKind},
 };
 use std::{
-    collections::HashMap, error::Error, fmt::{Debug, Display}, rc::Rc, sync::{Arc, Mutex}
+    collections::HashMap,
+    error::Error,
+    fmt::{Debug, Display},
+    rc::Rc,
+    sync::{Arc, Mutex},
 };
 
 pub type Pointer<T> = Arc<Mutex<T>>;
@@ -450,7 +454,61 @@ impl Value {
             },
             BinaryOperation::And => Value::Bool(bool::from(left) && bool::from(right)),
             BinaryOperation::Or => Value::Bool(bool::from(left) && bool::from(right)),
-            BinaryOperation::Is => todo!(),
+            BinaryOperation::Is => match (left, right) {
+                (left, Value::String(right)) => Value::Bool(left.typ() == right),
+                (left, right) => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::IllegalBinaryOperation {
+                            op,
+                            left: left.typ(),
+                            right: right.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            BinaryOperation::As => match (left, right) {
+                (left, Value::String(right)) => match right.as_str() {
+                    "int" => i64::try_from(left).ok().map(Value::Int).unwrap_or_default(),
+                    "float" => f64::try_from(left)
+                        .ok()
+                        .map(Value::Float)
+                        .unwrap_or_default(),
+                    "bool" => Value::Bool(bool::from(left)),
+                    "char" => char::try_from(left)
+                        .ok()
+                        .map(Value::Char)
+                        .unwrap_or_default(),
+                    "str" => String::try_from(left)
+                        .ok()
+                        .map(Value::String)
+                        .unwrap_or_default(),
+                    "vec" => Vec::try_from(left)
+                        .ok()
+                        .map(|v| Value::Vector(Arc::new(Mutex::new(v))))
+                        .unwrap_or_default(),
+                    "tuple" => TryFrom::<Value>::try_from(left)
+                        .ok()
+                        .map(|v| Value::Tuple(Arc::new(Mutex::new(v))))
+                        .unwrap_or_default(),
+                    _ => {
+                        return Err(RunTimeError {
+                            err: RunTimeErrorKind::UnknownTypeCast(right),
+                            ln,
+                        })
+                    }
+                },
+                (left, right) => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::IllegalBinaryOperation {
+                            op,
+                            left: left.typ(),
+                            right: right.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
             BinaryOperation::In => match (left, right) {
                 (Value::Char(left), Value::String(right)) => Value::Bool(right.contains(left)),
                 (Value::String(left), Value::Map(right)) => {
@@ -476,7 +534,6 @@ impl Value {
                     })
                 }
             },
-            BinaryOperation::As => todo!(),
         })
     }
     pub fn unary(op: UnaryOperation, right: Self, ln: usize) -> Result<Self, RunTimeError> {
@@ -605,5 +662,75 @@ impl From<Value> for bool {
             Value::Fn(_) => true,
             Value::NativeObject(_) => true,
         }
+    }
+}
+impl TryFrom<Value> for i64 {
+    type Error = ();
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        Ok(match value {
+            Value::Int(v) => v,
+            Value::Float(v) => v as i64,
+            _ => return Err(()),
+        })
+    }
+}
+impl TryFrom<Value> for f64 {
+    type Error = ();
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        Ok(match value {
+            Value::Int(v) => v as f64,
+            Value::Float(v) => v,
+            _ => return Err(()),
+        })
+    }
+}
+impl TryFrom<Value> for char {
+    type Error = ();
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        Ok(match value {
+            Value::Char(v) => v,
+            _ => return Err(()),
+        })
+    }
+}
+impl TryFrom<Value> for String {
+    type Error = ();
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        Ok(value.to_string())
+    }
+}
+impl TryFrom<Value> for Vec<Value> {
+    type Error = ();
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        Ok(match value {
+            Value::Vector(v) => v.lock().unwrap().clone(),
+            Value::Tuple(v) => v.lock().unwrap().to_vec(),
+            Value::Map(v) => v
+                .lock()
+                .unwrap()
+                .keys()
+                .map(|v| Value::String(v.clone()))
+                .collect(),
+            _ => return Err(()),
+        })
+    }
+}
+impl TryFrom<Value> for Box<[Value]> {
+    type Error = ();
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        Ok(match value {
+            Value::Vector(v) => v.lock().unwrap().clone().into_boxed_slice(),
+            Value::Tuple(v) => v.lock().unwrap().clone(),
+            _ => return Err(()),
+        })
+    }
+}
+impl TryFrom<Value> for HashMap<String, Value> {
+    type Error = ();
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        Ok(match value {
+            Value::Map(v) => v.lock().unwrap().clone(),
+            _ => return Err(()),
+        })
     }
 }

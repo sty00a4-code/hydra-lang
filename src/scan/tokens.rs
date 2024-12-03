@@ -87,6 +87,8 @@ impl Token {
             "while" => Self::While,
             "for" => Self::For,
             "in" => Self::In,
+            "is" => Self::Is,
+            "as" => Self::As,
             "return" => Self::Return,
             "break" => Self::Break,
             "continue" => Self::Continue,
