@@ -536,6 +536,41 @@ impl Compilable for Located<Expression> {
                 );
                 Source::Register(dst)
             }
+            Expression::Field {
+                head,
+                field:
+                    Located {
+                        value: field,
+                        pos: _,
+                    },
+            } => {
+                let head = head.compile(compiler);
+                let field = compiler.new_constant(Value::String(field));
+                let dst = compiler.frame_mut().unwrap().new_register();
+                compiler.write(
+                    ByteCode::Field {
+                        dst: Location::Register(dst),
+                        head,
+                        field: Source::Constant(field),
+                    },
+                    ln,
+                );
+                Source::Register(dst)
+            }
+            Expression::Index { head, index } => {
+                let head = head.compile(compiler);
+                let field = index.compile(compiler);
+                let dst = compiler.frame_mut().unwrap().new_register();
+                compiler.write(
+                    ByteCode::Field {
+                        dst: Location::Register(dst),
+                        head,
+                        field,
+                    },
+                    ln,
+                );
+                Source::Register(dst)
+            }
             Expression::Binary { op, left, right } => {
                 let left = left.compile(compiler);
                 let right = right.compile(compiler);

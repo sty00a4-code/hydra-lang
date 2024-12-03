@@ -1,2 +1,1 @@
-let (a, b) = (1, 2)
-print(a, b)
+debug(error("hello").path)

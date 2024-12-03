@@ -37,7 +37,10 @@ pub struct Function {
 pub type NativeFn = dyn Fn(&mut Interpreter, Vec<Value>) -> Result<Option<Value>, Box<dyn Error>>;
 pub trait NativeObject {
     fn typ(&self) -> &'static str;
-    fn get(&self, key: &str) -> Option<Value>;
+    #[allow(unused_variables)]
+    fn get(&self, key: &str) -> Option<Value> {
+        None
+    }
 }
 
 unsafe impl Send for Function {}
@@ -139,6 +142,21 @@ impl Value {
                 Value::String(key) => {
                     let map = arc.lock().unwrap();
                     map.get(&key).cloned().unwrap_or_default()
+                }
+                field => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::InvalidField {
+                            head: Value::Map(Default::default()).typ(),
+                            field: field.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            Value::NativeObject(arc) => match field {
+                Value::String(key) => {
+                    let map = arc.lock().unwrap();
+                    map.get(&key).unwrap_or_default()
                 }
                 field => {
                     return Err(RunTimeError {

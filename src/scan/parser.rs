@@ -692,6 +692,36 @@ impl Expression {
                         pos,
                     )
                 }
+                Token::Dot => {
+                    parser.get().unwrap();
+                    let field = Parameter::parse_ident(parser)?;
+                    let mut pos = head.pos.clone();
+                    pos.extend(&field.pos);
+                    Located::new(
+                        Self::Field {
+                            head: Box::new(head),
+                            field,
+                        },
+                        pos,
+                    )
+                }
+                Token::BracketLeft => {
+                    parser.get().unwrap();
+                    let index = Box::new(Expression::parse(parser)?);
+                    let mut pos = head.pos.clone();
+                    let Indexed {
+                        value: _,
+                        index: end,
+                    } = parser.expect(Token::BracketRight)?;
+                    pos.col.end = end.end;
+                    Located::new(
+                        Self::Index {
+                            head: Box::new(head),
+                            index,
+                        },
+                        pos,
+                    )
+                }
                 _ => break,
             };
         }
@@ -841,19 +871,19 @@ impl Parsable for Path {
             index: _,
         }) = parser.peek()
         {
-            match token {
+            head = match token {
                 Token::Dot => {
                     parser.get().unwrap();
                     let field = Parameter::parse_ident(parser)?;
                     let mut pos = head.pos.clone();
                     pos.extend(&field.pos);
-                    head = Located::new(
+                    Located::new(
                         Self::Field {
                             head: Box::new(head),
                             field,
                         },
                         pos,
-                    );
+                    )
                 }
                 Token::BracketLeft => {
                     parser.get().unwrap();
@@ -864,13 +894,13 @@ impl Parsable for Path {
                         index: end,
                     } = parser.expect(Token::BracketRight)?;
                     pos.col.end = end.end;
-                    head = Located::new(
+                    Located::new(
                         Self::Index {
                             head: Box::new(head),
                             index,
                         },
                         pos,
-                    );
+                    )
                 }
                 _ => break,
             }

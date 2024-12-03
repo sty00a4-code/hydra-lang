@@ -73,6 +73,14 @@ pub enum Expression {
         field: Located<String>,
         args: Vec<Located<Expression>>,
     },
+    Field {
+        head: Box<Located<Self>>,
+        field: Located<String>,
+    },
+    Index {
+        head: Box<Located<Self>>,
+        index: Box<Located<Expression>>,
+    },
     Binary {
         op: BinaryOperator,
         left: Box<Located<Self>>,

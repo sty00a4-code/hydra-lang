@@ -193,6 +193,10 @@ impl Interpreter {
         let call_frame = self.call_frame()?;
         call_frame.closure.lines.get(call_frame.idx).copied()
     }
+    pub fn path(&self) -> Option<&String> {
+        let call_frame = self.call_frame()?;
+        call_frame.closure.path.as_ref()
+    }
     pub fn closure(&self, addr: u16) -> Option<&Rc<Closure>> {
         self.call_frame()?.closure.closures.get(addr as usize)
     }
