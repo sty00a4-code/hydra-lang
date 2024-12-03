@@ -91,7 +91,6 @@ native_fn!(_debug (_i args): {
         args.into_boxed_slice()
     )))))
 });
-#[allow(dead_code)]
 pub struct ErrorObject {
     msg: String,
     path: Option<String>,
