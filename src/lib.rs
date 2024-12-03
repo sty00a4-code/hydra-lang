@@ -2,13 +2,15 @@
 use std::{error::Error, rc::Rc};
 
 use run::{
-    code::Closure,
     compiler::{Compilable, Compiler, Frame, Scope},
     interpreter::Interpreter,
     value::{Function, Value},
 };
 use scan::{
-    ast::Chunk, lexer::Lexer, parser::{Parsable, Parser}, position::{Located, Position}
+    ast::Chunk,
+    lexer::{Lexer, Line},
+    parser::{Parsable, Parser},
+    position::{Located, Position},
 };
 
 #[cfg(test)]
@@ -17,24 +19,32 @@ mod tests;
 pub mod run;
 pub mod scan;
 
+pub fn lex(text: &str) -> Result<Vec<Line>, Located<Box<dyn Error>>> {
+    Lexer::from(text)
+        .lex()
+        .map_err(|Located { value: err, pos }| Located::new(err.into(), pos))
+}
+
 pub fn parse<N: Parsable>(text: &str) -> Result<Located<N>, Located<Box<dyn Error>>>
 where
     <N as scan::parser::Parsable>::Error: 'static,
 {
-    let lines = Lexer::from(text)
-        .lex()
-        .map_err(|Located { value: err, pos }| Located::new(err.into(), pos))?;
+    let lines = lex(text)?;
     let mut parser = Parser::new(lines);
     N::parse(&mut parser).map_err(|Located { value: err, pos }| Located::new(err.into(), pos))
 }
 
-pub fn compile<N: Parsable>(text: &str) -> Result<<Located<N> as Compilable>::Output, Located<Box<dyn Error>>>
+pub fn compile<N: Parsable>(
+    text: &str,
+    path: Option<String>,
+) -> Result<<Located<N> as Compilable>::Output, Located<Box<dyn Error>>>
 where
     <N as scan::parser::Parsable>::Error: 'static,
     Located<N>: Compilable,
 {
     let ast = parse::<N>(text)?;
     let mut compiler = Compiler {
+        path,
         frame_stack: vec![Frame {
             scopes: vec![Scope::default()],
             ..Default::default()
@@ -43,12 +53,8 @@ where
     Ok(ast.compile(&mut compiler))
 }
 
-pub fn run(
-    text: &str,
-    args: Vec<Value>,
-) -> Result<Option<Value>, Located<Box<dyn Error>>>
-{
-    let closure = compile::<Chunk>(text)?;
+pub fn run(text: &str, args: Vec<Value>, path: Option<String>) -> Result<Option<Value>, Located<Box<dyn Error>>> {
+    let closure = compile::<Chunk>(text, path)?;
     let mut interpreter = Interpreter::default();
     interpreter
         .call(

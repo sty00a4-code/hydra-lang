@@ -14,6 +14,7 @@ use super::{
 
 #[derive(Debug, Default)]
 pub struct Compiler {
+    pub path: Option<String>,
     pub frame_stack: Vec<Frame>,
 }
 #[derive(Debug, Default)]
@@ -30,8 +31,13 @@ pub struct Scope {
 }
 
 impl Compiler {
-    pub fn push_frame(&mut self) {
+    pub fn push_frame(&mut self, path: Option<String>, name: Option<String>) {
         self.frame_stack.push(Frame {
+            closure: Closure {
+                path,
+                name,
+                ..Default::default()
+            },
             scopes: vec![Scope::default()],
             ..Default::default()
         });
@@ -152,7 +158,7 @@ impl Compilable for Located<Chunk> {
     fn compile(self, compiler: &mut Compiler) -> Self::Output {
         let Located { value: chunk, pos } = self;
         let ln = pos.ln.end;
-        compiler.push_frame();
+        compiler.push_frame(compiler.path.clone(), None);
         for stat in chunk.stats {
             if stat.compile(compiler).is_some() {
                 break;
@@ -231,7 +237,7 @@ impl Compilable for Located<Statement> {
                 body,
             } => {
                 let dst = Location::Register(compiler.frame_mut().unwrap().new_local(name));
-                compiler.push_frame();
+                compiler.push_frame(compiler.path.clone(), None);
                 {
                     compiler
                         .frame_mut()

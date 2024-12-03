@@ -204,6 +204,8 @@ impl From<Location> for Source {
 
 #[derive(Debug, Clone, Default)]
 pub struct Closure {
+    pub path: Option<String>,
+    pub name: Option<String>,
     pub code: Vec<ByteCode>,
     pub lines: Vec<usize>,
     pub parameters: u8,
@@ -211,4 +213,149 @@ pub struct Closure {
     pub varargs: bool,
     pub closures: Vec<Rc<Closure>>,
     pub constants: Vec<Value>,
+}
+
+impl Display for Closure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "  path: {}",
+            self.path.clone().unwrap_or("?".to_string())
+        )?;
+        writeln!(f, "  registers: {}", self.registers)?;
+        writeln!(f, "  parameters: {}", self.parameters)?;
+        writeln!(f, "  varargs: {}", self.varargs)?;
+        writeln!(f, "  code:")?;
+        let width = 28;
+        for ((addr, bytecode), line) in self.code.iter().enumerate().zip(self.lines.iter()) {
+            let s = bytecode.to_string();
+            writeln!(
+                f,
+                "    [{addr:04}] {s}{}({})",
+                " ".repeat(width - s.len()),
+                line + 1
+            )?;
+        }
+        writeln!(f, "  constants:")?;
+        for (addr, value) in self.constants.iter().enumerate() {
+            writeln!(f, "    [{addr}] {value:?}")?;
+        }
+        writeln!(f, "  closures:")?;
+        for (addr, closure) in self.closures.iter().enumerate() {
+            writeln!(f, "    [{addr}] {:08x?}", Rc::as_ptr(closure))?;
+        }
+
+        for closure in self.closures.iter() {
+            write!(
+                f,
+                "<{}{}:{:08x?}>:\n{closure}",
+                if let Some(path) = &closure.path {
+                    path
+                } else {
+                    ""
+                },
+                if let Some(name) = &closure.name {
+                    if closure.path.is_some() {
+                        format!(":{name}")
+                    } else {
+                        name.clone()
+                    }
+                } else {
+                    "".into()
+                },
+                Rc::as_ptr(closure)
+            )?;
+        }
+        Ok(())
+    }
+}
+impl Display for ByteCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ByteCode::None => write!(f, "none"),
+            ByteCode::Jump { addr } => write!(f, "jump [{addr:04}]"),
+            ByteCode::JumpIf {
+                negativ: false,
+                cond,
+                addr,
+            } => write!(f, "jumpif     {cond} [{addr:04}]"),
+            ByteCode::JumpIf {
+                negativ: true,
+                cond,
+                addr,
+            } => write!(f, "jumpif not {cond} [{addr:04}]"),
+            ByteCode::JumpIfSome {
+                negativ: false,
+                src,
+                addr,
+            } => write!(f, "jumpifsome {src} [{addr:04}]"),
+            ByteCode::JumpIfSome {
+                negativ: true,
+                src,
+                addr,
+            } => write!(f, "jumpifnone {src} [{addr:04}]"),
+            ByteCode::Call {
+                dst: None,
+                func,
+                start,
+                amount,
+            } => write!(f, "call       {func} ({start}..{})", start + amount),
+            ByteCode::Call {
+                dst: Some(dst),
+                func,
+                start,
+                amount,
+            } => write!(
+                f,
+                "call       {func} ({start}..{}) -> {dst}",
+                start + amount
+            ),
+            ByteCode::Return { src: None } => write!(f, "return"),
+            ByteCode::Return { src: Some(src) } => write!(f, "return     {src}"),
+            ByteCode::Move { dst, src } => write!(f, "move       {dst} = {src}"),
+            ByteCode::Field { dst, head, field } => {
+                write!(f, "field      {dst} = {head} . {field}")
+            }
+            ByteCode::SetField { head, field, src } => {
+                write!(f, "setfield   {head} . {field} = {src}")
+            }
+            ByteCode::Vector { dst, start, amount } => {
+                write!(f, "vec        {start}..{} -> {dst}", start + amount)
+            }
+            ByteCode::Tuple { dst, start, amount } => {
+                write!(f, "tuple      {start}..{} -> {dst}", start + amount)
+            }
+            ByteCode::Map { dst } => write!(f, "map        {dst}"),
+            ByteCode::Fn { dst, addr } => write!(f, "fn         {dst} = c#{addr}"),
+            ByteCode::Binary {
+                op,
+                dst,
+                left,
+                right,
+            } => write!(f, "binary     {dst} = {left} {op} {right}"),
+            ByteCode::Unary { op, dst, right } => write!(f, "unary     {dst} = {op} {right}"),
+        }
+    }
+}
+impl Display for Source {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Source::Null => write!(f, "null"),
+            Source::Bool(v) => write!(f, "{v:?}"),
+            Source::Char(v) => write!(f, "{v:?}"),
+            Source::Int(v) => write!(f, "{v:?}"),
+            Source::Float(v) => write!(f, "{v:?}"),
+            Source::Register(reg) => write!(f, "@{reg}"),
+            Source::Global(addr) => write!(f, "g#{addr}"),
+            Source::Constant(addr) => write!(f, "#{addr}"),
+        }
+    }
+}
+impl Display for Location {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Location::Register(reg) => write!(f, "!{reg}"),
+            Location::Global(addr) => write!(f, "!g#{addr}"),
+        }
+    }
 }
