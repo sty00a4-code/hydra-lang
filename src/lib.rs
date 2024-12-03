@@ -1,6 +1,4 @@
 #![feature(if_let_guard)]
-use std::{error::Error, rc::Rc};
-
 use run::{
     compiler::{Compilable, Compiler, Frame, Scope},
     interpreter::Interpreter,
@@ -12,12 +10,14 @@ use scan::{
     parser::{Parsable, Parser},
     position::{Located, Position},
 };
+use std::{error::Error, rc::Rc};
 
 #[cfg(test)]
 mod tests;
 
 pub mod run;
 pub mod scan;
+pub mod std_hydra;
 
 pub fn lex(text: &str) -> Result<Vec<Line>, Located<Box<dyn Error>>> {
     Lexer::from(text)
@@ -53,7 +53,11 @@ where
     Ok(ast.compile(&mut compiler))
 }
 
-pub fn run(text: &str, args: Vec<Value>, path: Option<String>) -> Result<Option<Value>, Located<Box<dyn Error>>> {
+pub fn run(
+    text: &str,
+    args: Vec<Value>,
+    path: Option<String>,
+) -> Result<Option<Value>, Located<Box<dyn Error>>> {
     let closure = compile::<Chunk>(text, path)?;
     let mut interpreter = Interpreter::default();
     interpreter

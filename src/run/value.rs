@@ -1,12 +1,9 @@
 use super::{
     code::{BinaryOperation, Closure, UnaryOperation},
-    interpreter::{RunTimeError, RunTimeErrorKind},
+    interpreter::{Interpreter, RunTimeError, RunTimeErrorKind},
 };
 use std::{
-    collections::HashMap,
-    fmt::{Debug, Display},
-    rc::Rc,
-    sync::{Arc, Mutex},
+    collections::HashMap, error::Error, fmt::{Debug, Display}, rc::Rc, sync::{Arc, Mutex}
 };
 
 pub type Pointer<T> = Arc<Mutex<T>>;
@@ -28,7 +25,7 @@ pub enum Value {
 }
 unsafe impl Send for Value {}
 unsafe impl Sync for Value {}
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum FnKind {
     Function(Pointer<Function>),
     Native(Rc<NativeFn>),
@@ -37,7 +34,7 @@ pub enum FnKind {
 pub struct Function {
     pub closure: Rc<Closure>,
 }
-pub type NativeFn = ();
+pub type NativeFn = dyn Fn(&mut Interpreter, Vec<Value>) -> Result<Option<Value>, Box<dyn Error>>;
 pub trait NativeObject {
     fn typ(&self) -> &'static str;
     fn get(&self, key: &str) -> Option<Value>;
@@ -517,7 +514,7 @@ impl PartialEq for Value {
                 Arc::as_ptr(left) == Arc::as_ptr(right)
             }
             (Self::Fn(FnKind::Native(left)), Self::Fn(FnKind::Native(right))) => {
-                Rc::as_ptr(left) == Rc::as_ptr(right)
+                std::ptr::addr_eq(Rc::as_ptr(left), Rc::as_ptr(right))
             }
             (Self::NativeObject(left), Self::NativeObject(right)) => {
                 std::ptr::addr_eq(Arc::as_ptr(left), Arc::as_ptr(right))

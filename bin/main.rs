@@ -1,6 +1,7 @@
 extern crate clap;
 extern crate hydra_lang;
 use hydra_lang::{
+    std_hydra,
     lex, parse,
     run::{
         compiler::{Compilable, Compiler, Frame, Scope},
@@ -187,6 +188,7 @@ pub fn run_args(
 ) -> Result<Option<Value>, Located<Box<dyn Error>>> {
     let closure = compile_args::<Chunk>(text, args)?;
     let mut interpreter = Interpreter::default();
+    std_hydra::import(&mut interpreter);
     interpreter
         .call(
             &Function {

@@ -49,6 +49,7 @@ pub enum RunTimeErrorKind {
         op: UnaryOperation,
         right: Type,
     },
+    Custom(String),
 }
 pub type Type = &'static str;
 impl Display for RunTimeErrorKind {
@@ -72,6 +73,7 @@ impl Display for RunTimeErrorKind {
             RunTimeErrorKind::IllegalUnaryOperation { op, right } => {
                 write!(f, "illegal unary operation {:?} on {right}", op.to_string())
             }
+            RunTimeErrorKind::Custom(err) => write!(f, "{err}"),
         }
     }
 }
@@ -118,7 +120,13 @@ impl Interpreter {
                 call_frame.stack.get(reg as usize).cloned()
             }
             Location::Global(addr) => {
-                let Value::String(var) = self.call_frame()?.closure.constants.get(addr as usize).cloned()? else {
+                let Value::String(var) = self
+                    .call_frame()?
+                    .closure
+                    .constants
+                    .get(addr as usize)
+                    .cloned()?
+                else {
                     return None;
                 };
                 if let Some(value) = self.globals.get(&var).cloned() {
@@ -164,8 +172,8 @@ impl Interpreter {
         self.call_stack.push(call_frame);
         Ok(())
     }
-    pub fn return_call(&mut self, src: Source) -> Option<Value> {
-        let return_value = self.source(src);
+    pub fn return_call(&mut self, src: Option<Source>) -> Option<Value> {
+        let return_value = src.and_then(|src| self.source(src));
         let CallFrame { dst, .. } = self.call_stack.pop().unwrap();
         if let Some(dst) = dst {
             let value = return_value.unwrap_or_default();
@@ -228,7 +236,16 @@ impl Interpreter {
                     Value::Fn(FnKind::Function(func)) => {
                         self.call(&func.lock().unwrap(), args, dst)?;
                     }
-                    Value::Fn(FnKind::Native(_)) => todo!(),
+                    Value::Fn(FnKind::Native(func)) => {
+                        let value = func(self, args).map_err(|err| RunTimeError {
+                            err: RunTimeErrorKind::Custom(err.to_string()),
+                            ln,
+                        })?;
+                        if let Some(dst) = dst {
+                            let dst = self.location(dst).unwrap();
+                            *dst.lock().unwrap() = value.unwrap_or_default();
+                        }
+                    }
                     value => {
                         return Err(RunTimeError {
                             err: RunTimeErrorKind::CannotCall(value.typ()),
@@ -238,7 +255,7 @@ impl Interpreter {
                 }
             }
             ByteCode::Return { src } => {
-                return Ok(Some(self.return_call(src.unwrap_or_default())));
+                return Ok(Some(self.return_call(src)));
             }
             ByteCode::Move { dst, src } => {
                 let dst = self.location(dst).unwrap();
