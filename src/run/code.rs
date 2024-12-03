@@ -299,7 +299,7 @@ impl Display for ByteCode {
                 func,
                 start,
                 amount,
-            } => write!(f, "call       {func} ({start}..{})", start + amount),
+            } => write!(f, "call       {func} ({start}..{})", start + amount - 1),
             ByteCode::Call {
                 dst: Some(dst),
                 func,
@@ -308,7 +308,7 @@ impl Display for ByteCode {
             } => write!(
                 f,
                 "call       {func} ({start}..{}) -> {dst}",
-                start + amount
+                start + amount - 1
             ),
             ByteCode::Return { src: None } => write!(f, "return"),
             ByteCode::Return { src: Some(src) } => write!(f, "return     {src}"),
@@ -320,10 +320,10 @@ impl Display for ByteCode {
                 write!(f, "setfield   {head} . {field} = {src}")
             }
             ByteCode::Vector { dst, start, amount } => {
-                write!(f, "vec        {start}..{} -> {dst}", start + amount)
+                write!(f, "vec        {start}..{} -> {dst}", start + amount - 1)
             }
             ByteCode::Tuple { dst, start, amount } => {
-                write!(f, "tuple      {start}..{} -> {dst}", start + amount)
+                write!(f, "tuple      {start}..{} -> {dst}", start + amount - 1)
             }
             ByteCode::Map { dst } => write!(f, "map        {dst}"),
             ByteCode::Fn { dst, addr } => write!(f, "fn         {dst} = c#{addr}"),
