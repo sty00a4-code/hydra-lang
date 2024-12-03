@@ -219,7 +219,7 @@ impl Interpreter {
                 start,
                 amount,
             } => {
-                let func = self.source(func).unwrap();
+                let func = self.source(func).unwrap_or_default();
                 let mut args = Vec::with_capacity(amount as usize);
                 for reg in start..(start + amount) {
                     args.push(self.source(Source::Register(reg)).unwrap());
@@ -242,18 +242,18 @@ impl Interpreter {
             }
             ByteCode::Move { dst, src } => {
                 let dst = self.location(dst).unwrap();
-                *dst.lock().unwrap() = self.source(src).unwrap();
+                *dst.lock().unwrap() = self.source(src).unwrap_or_default();
             }
             ByteCode::Field { dst, head, field } => {
                 let dst = self.location(dst).unwrap();
-                let head = self.source(head).unwrap();
-                let field = self.source(field).unwrap();
+                let head = self.source(head).unwrap_or_default();
+                let field = self.source(field).unwrap_or_default();
                 *dst.lock().unwrap() = head.field(field, ln)?;
             }
             ByteCode::SetField { head, field, src } => {
-                let head = self.source(head).unwrap();
-                let field = self.source(field).unwrap();
-                let src = self.source(src).unwrap();
+                let head = self.source(head).unwrap_or_default();
+                let field = self.source(field).unwrap_or_default();
+                let src = self.source(src).unwrap_or_default();
                 head.set_field(field, src, ln)?;
             }
             ByteCode::Vector { dst, start, amount } => {
@@ -292,13 +292,13 @@ impl Interpreter {
                 right,
             } => {
                 let dst = self.location(dst).unwrap();
-                let left = self.source(left).unwrap();
-                let right = self.source(right).unwrap();
+                let left = self.source(left).unwrap_or_default();
+                let right = self.source(right).unwrap_or_default();
                 *dst.lock().unwrap() = Value::binary(op, left, right, ln)?;
             }
             ByteCode::Unary { op, dst, right } => {
                 let dst = self.location(dst).unwrap();
-                let right = self.source(right).unwrap();
+                let right = self.source(right).unwrap_or_default();
                 *dst.lock().unwrap() = Value::unary(op, right, ln)?;
             }
         }

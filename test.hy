@@ -1,1 +1,2 @@
-return (1, 2) == (2, 1)
+let (a, b) = (1, 2)
+print(a, b)
