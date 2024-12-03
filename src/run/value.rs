@@ -1,4 +1,7 @@
-use super::code::Closure;
+use super::{
+    code::{BinaryOperation, Closure, UnaryOperation},
+    interpreter::{RunTimeError, RunTimeErrorKind},
+};
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
@@ -40,6 +43,8 @@ pub trait NativeObject {
     fn get(&self, key: &str) -> Option<Value>;
 }
 
+unsafe impl Send for Function {}
+unsafe impl Sync for Function {}
 impl Value {
     pub fn typ(&self) -> &'static str {
         match self {
@@ -55,6 +60,435 @@ impl Value {
             Value::Fn(_) => "fn",
             Value::NativeObject(arc) => arc.lock().unwrap().typ(),
         }
+    }
+    pub fn field(self, field: Value, ln: usize) -> Result<Value, RunTimeError> {
+        Ok(match self {
+            Value::String(string) => match field {
+                Value::Int(value) => if value <= -1 {
+                    if (value.unsigned_abs() - 1) as usize > string.len() {
+                        None
+                    } else {
+                        let index = string.len() - value.unsigned_abs() as usize;
+                        string.get(index..=index)
+                    }
+                } else {
+                    let index = value.unsigned_abs() as usize;
+                    string.get(index..=index)
+                }
+                .and_then(|s| s.chars().next())
+                .map(Value::Char)
+                .unwrap_or_default(),
+                field => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::InvalidField {
+                            head: Value::Vector(Default::default()).typ(),
+                            field: field.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            Value::Vector(arc) => match field {
+                Value::Int(value) => {
+                    let values = arc.lock().unwrap();
+                    if value <= -1 {
+                        if (value.unsigned_abs() - 1) as usize > values.len() {
+                            None
+                        } else {
+                            values.get(values.len() - value.unsigned_abs() as usize)
+                        }
+                    } else {
+                        values.get(value.unsigned_abs() as usize)
+                    }
+                    .cloned()
+                    .unwrap_or_default()
+                }
+                field => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::InvalidField {
+                            head: Value::Vector(Default::default()).typ(),
+                            field: field.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            Value::Tuple(arc) => match field {
+                Value::Int(value) => {
+                    let values = arc.lock().unwrap();
+                    if value <= -1 {
+                        if (value.unsigned_abs() - 1) as usize > values.len() {
+                            None
+                        } else {
+                            values.get(values.len() - value.unsigned_abs() as usize)
+                        }
+                    } else {
+                        values.get(value.unsigned_abs() as usize)
+                    }
+                    .cloned()
+                    .unwrap_or_default()
+                }
+                field => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::InvalidField {
+                            head: Value::Tuple(Arc::new(Mutex::new(Box::new([])))).typ(),
+                            field: field.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            Value::Map(arc) => match field {
+                Value::String(key) => {
+                    let map = arc.lock().unwrap();
+                    map.get(&key).cloned().unwrap_or_default()
+                }
+                field => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::InvalidField {
+                            head: Value::Map(Default::default()).typ(),
+                            field: field.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            head => {
+                return Err(RunTimeError {
+                    err: RunTimeErrorKind::InvalidFieldHead(head.typ()),
+                    ln,
+                })
+            }
+        })
+    }
+    pub fn set_field(self, field: Value, src: Value, ln: usize) -> Result<(), RunTimeError> {
+        match self {
+            Value::Vector(arc) => match field {
+                Value::Int(value) => {
+                    let len = arc.lock().unwrap().len();
+                    let mut values = arc.lock().unwrap();
+                    let dst = if value <= -1 {
+                        if (value.unsigned_abs() - 1) as usize > len {
+                            None
+                        } else {
+                            values.get_mut(len - value.unsigned_abs() as usize)
+                        }
+                    } else {
+                        values.get_mut(value.unsigned_abs() as usize)
+                    }
+                    .ok_or(RunTimeError {
+                        err: RunTimeErrorKind::IndexOutOfRange { index: value, len },
+                        ln,
+                    })?;
+                    *dst = src;
+                }
+                field => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::InvalidField {
+                            head: Value::Vector(Default::default()).typ(),
+                            field: field.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            Value::Tuple(arc) => match field {
+                Value::Int(value) => {
+                    let len = arc.lock().unwrap().len();
+                    let mut values = arc.lock().unwrap();
+                    let dst = if value <= -1 {
+                        if (value.unsigned_abs() - 1) as usize > len {
+                            None
+                        } else {
+                            values.get_mut(len - value.unsigned_abs() as usize)
+                        }
+                    } else {
+                        values.get_mut(value.unsigned_abs() as usize)
+                    }
+                    .ok_or(RunTimeError {
+                        err: RunTimeErrorKind::IndexOutOfRange { index: value, len },
+                        ln,
+                    })?;
+                    *dst = src;
+                }
+                field => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::InvalidField {
+                            head: Value::Vector(Default::default()).typ(),
+                            field: field.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            Value::Map(arc) => match field {
+                Value::String(key) => {
+                    let mut map = arc.lock().unwrap();
+                    map.insert(key, src);
+                }
+                field => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::InvalidField {
+                            head: Value::Map(Default::default()).typ(),
+                            field: field.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            head => {
+                return Err(RunTimeError {
+                    err: RunTimeErrorKind::InvalidFieldHead(head.typ()),
+                    ln,
+                })
+            }
+        };
+        Ok(())
+    }
+    pub fn binary(
+        op: BinaryOperation,
+        left: Self,
+        right: Self,
+        ln: usize,
+    ) -> Result<Self, RunTimeError> {
+        if let (Value::Tuple(left), Value::Tuple(right)) = (&left, &right) {
+            let left = left.lock().unwrap();
+            let right = right.lock().unwrap();
+            let mut new = Vec::with_capacity(left.len());
+            for (left, right) in left.iter().zip(right.iter()) {
+                new.push(Self::binary(op, left.clone(), right.clone(), ln)?);
+            }
+            return Ok(Self::Tuple(Arc::new(Mutex::new(new.into_boxed_slice()))));
+        }
+        Ok(match op {
+            BinaryOperation::Add => match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Int(left + right),
+                (Value::Float(left), Value::Float(right)) => Value::Float(left + right),
+                (Value::Int(left), Value::Float(right)) => Value::Float(left as f64 + right),
+                (Value::Float(left), Value::Int(right)) => Value::Float(left + right as f64),
+                (Value::String(left), Value::String(right)) => Value::String(left + &right),
+                (left, right) => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::IllegalBinaryOperation {
+                            op,
+                            left: left.typ(),
+                            right: right.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            BinaryOperation::Sub => match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Int(left - right),
+                (Value::Float(left), Value::Float(right)) => Value::Float(left - right),
+                (Value::Int(left), Value::Float(right)) => Value::Float(left as f64 - right),
+                (Value::Float(left), Value::Int(right)) => Value::Float(left - right as f64),
+                (left, right) => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::IllegalBinaryOperation {
+                            op,
+                            left: left.typ(),
+                            right: right.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            BinaryOperation::Mul => match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Int(left * right),
+                (Value::Float(left), Value::Float(right)) => Value::Float(left * right),
+                (Value::Int(left), Value::Float(right)) => Value::Float(left as f64 * right),
+                (Value::Float(left), Value::Int(right)) => Value::Float(left * right as f64),
+                (Value::String(left), Value::Int(right)) => {
+                    Value::String(left.repeat(right.max(0) as usize))
+                }
+                (left, right) => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::IllegalBinaryOperation {
+                            op,
+                            left: left.typ(),
+                            right: right.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            BinaryOperation::Div => match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Int(left / right),
+                (Value::Float(left), Value::Float(right)) => Value::Float(left / right),
+                (Value::Int(left), Value::Float(right)) => Value::Float(left as f64 / right),
+                (Value::Float(left), Value::Int(right)) => Value::Float(left / right as f64),
+                (left, right) => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::IllegalBinaryOperation {
+                            op,
+                            left: left.typ(),
+                            right: right.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            BinaryOperation::Mod => match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Int(left % right),
+                (Value::Float(left), Value::Float(right)) => Value::Float(left % right),
+                (Value::Int(left), Value::Float(right)) => Value::Float(left as f64 % right),
+                (Value::Float(left), Value::Int(right)) => Value::Float(left % right as f64),
+                (left, right) => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::IllegalBinaryOperation {
+                            op,
+                            left: left.typ(),
+                            right: right.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            BinaryOperation::Pow => match (left, right) {
+                (Value::Int(left), Value::Int(right)) => {
+                    Value::Int(left.pow(right.max(0).unsigned_abs().try_into().unwrap_or_default()))
+                }
+                (Value::Float(left), Value::Float(right)) => Value::Float(left.powf(right)),
+                (Value::Int(left), Value::Float(right)) => Value::Float((left as f64).powf(right)),
+                (Value::Float(left), Value::Int(right)) => Value::Float(left.powf(right as f64)),
+                (left, right) => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::IllegalBinaryOperation {
+                            op,
+                            left: left.typ(),
+                            right: right.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            BinaryOperation::EE => Value::Bool(left == right),
+            BinaryOperation::NE => Value::Bool(left != right),
+            BinaryOperation::LT => match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Bool(left < right),
+                (Value::Float(left), Value::Float(right)) => Value::Bool(left < right),
+                (Value::Int(left), Value::Float(right)) => Value::Bool((left as f64) < right),
+                (Value::Float(left), Value::Int(right)) => Value::Bool(left < right as f64),
+                (Value::Char(left), Value::Char(right)) => Value::Bool(left < right),
+                (left, right) => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::IllegalBinaryOperation {
+                            op,
+                            left: left.typ(),
+                            right: right.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            BinaryOperation::GT => match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Bool(left > right),
+                (Value::Float(left), Value::Float(right)) => Value::Bool(left > right),
+                (Value::Int(left), Value::Float(right)) => Value::Bool(left as f64 > right),
+                (Value::Float(left), Value::Int(right)) => Value::Bool(left > right as f64),
+                (Value::Char(left), Value::Char(right)) => Value::Bool(left > right),
+                (left, right) => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::IllegalBinaryOperation {
+                            op,
+                            left: left.typ(),
+                            right: right.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            BinaryOperation::LE => match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Bool(left <= right),
+                (Value::Float(left), Value::Float(right)) => Value::Bool(left <= right),
+                (Value::Int(left), Value::Float(right)) => Value::Bool(left as f64 <= right),
+                (Value::Float(left), Value::Int(right)) => Value::Bool(left <= right as f64),
+                (Value::Char(left), Value::Char(right)) => Value::Bool(left <= right),
+                (left, right) => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::IllegalBinaryOperation {
+                            op,
+                            left: left.typ(),
+                            right: right.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            BinaryOperation::GE => match (left, right) {
+                (Value::Int(left), Value::Int(right)) => Value::Bool(left >= right),
+                (Value::Float(left), Value::Float(right)) => Value::Bool(left >= right),
+                (Value::Int(left), Value::Float(right)) => Value::Bool(left as f64 >= right),
+                (Value::Float(left), Value::Int(right)) => Value::Bool(left >= right as f64),
+                (Value::Char(left), Value::Char(right)) => Value::Bool(left >= right),
+                (left, right) => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::IllegalBinaryOperation {
+                            op,
+                            left: left.typ(),
+                            right: right.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            BinaryOperation::And => Value::Bool(bool::from(left) && bool::from(right)),
+            BinaryOperation::Or => Value::Bool(bool::from(left) && bool::from(right)),
+            BinaryOperation::Is => todo!(),
+            BinaryOperation::In => match (left, right) {
+                (Value::Char(left), Value::String(right)) => Value::Bool(right.contains(left)),
+                (Value::String(left), Value::Map(right)) => {
+                    let right = right.lock().unwrap();
+                    Value::Bool(right.contains_key(&left))
+                }
+                (left, Value::Vector(right)) => {
+                    let right = right.lock().unwrap();
+                    Value::Bool(right.contains(&left))
+                }
+                (left, Value::Tuple(right)) => {
+                    let right = right.lock().unwrap();
+                    Value::Bool(right.contains(&left))
+                }
+                (left, right) => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::IllegalBinaryOperation {
+                            op,
+                            left: left.typ(),
+                            right: right.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            BinaryOperation::As => todo!(),
+        })
+    }
+    pub fn unary(op: UnaryOperation, right: Self, ln: usize) -> Result<Self, RunTimeError> {
+        if let Value::Tuple(right) = &right {
+            let right = right.lock().unwrap();
+            let mut new = Vec::with_capacity(right.len());
+            for right in right.iter() {
+                new.push(Self::unary(op, right.clone(), ln)?);
+            }
+            return Ok(Self::Tuple(Arc::new(Mutex::new(new.into_boxed_slice()))));
+        }
+        Ok(match op {
+            UnaryOperation::Neg => match right {
+                Value::Int(right) => Value::Int(-right),
+                Value::Float(right) => Value::Float(-right),
+                right => {
+                    return Err(RunTimeError {
+                        err: RunTimeErrorKind::IllegalUnaryOperation {
+                            op,
+                            right: right.typ(),
+                        },
+                        ln,
+                    })
+                }
+            },
+            UnaryOperation::Not => Value::Bool(!bool::from(right)),
+        })
     }
 }
 impl PartialEq for Value {

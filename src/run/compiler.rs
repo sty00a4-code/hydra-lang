@@ -80,6 +80,16 @@ impl Compiler {
     pub fn none(&mut self) -> usize {
         self.write(ByteCode::None, 0)
     }
+    pub fn return_safe(&mut self, ln: usize) -> usize {
+        let frame = self.frame_mut().unwrap();
+        if let Some(ByteCode::Return { src: _ }) = frame.closure.code.last() {
+            return frame.closure.code.len() - 1;
+        }
+        let addr = frame.closure.code.len();
+        frame.closure.code.push(ByteCode::Return { src: None });
+        frame.closure.lines.push(ln);
+        addr
+    }
     pub fn move_checked(&mut self, dst: Location, src: Source, ln: usize) -> usize {
         if dst.eq_source(&src) {
             let addr = self.frame().unwrap().closure.code.len() - 1;
@@ -164,7 +174,7 @@ impl Compilable for Located<Chunk> {
                 break;
             }
         }
-        compiler.write(ByteCode::Return { src: None }, ln);
+        compiler.return_safe(ln);
         compiler.pop_frame().unwrap().closure
     }
 }

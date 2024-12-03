@@ -1,4 +1,1 @@
-fn add(a, b)
-    return a + b
-
-return add(1, 2)
+return (1, 2) == (2, 1)
