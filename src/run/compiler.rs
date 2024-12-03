@@ -208,13 +208,50 @@ impl Compilable for Located<Statement> {
                 expr,
             } => {
                 let src = expr.compile(compiler);
-                let dst = match param {
+                match param {
                     Parameter::Ident(ident) => {
-                        Location::Register(compiler.frame_mut().unwrap().new_local(ident))
+                        let dst =
+                            Location::Register(compiler.frame_mut().unwrap().new_local(ident));
+                        compiler.move_checked(dst, src, ln);
                     }
-                    _ => todo!(),
-                };
-                compiler.move_checked(dst, src, ln);
+                    Parameter::Vector(idents) | Parameter::Tuple(idents) => {
+                        for (
+                            idx,
+                            Located {
+                                value: ident,
+                                pos: _,
+                            },
+                        ) in idents.into_iter().enumerate()
+                        {
+                            let dst =
+                                Location::Register(compiler.frame_mut().unwrap().new_local(ident));
+                            compiler.write(
+                                ByteCode::Field {
+                                    dst,
+                                    head: src,
+                                    field: Source::Int(idx as i64),
+                                },
+                                ln,
+                            );
+                        }
+                    }
+                    Parameter::Map(keys) => {
+                        for Located { value: key, pos: _ } in keys {
+                            let field =
+                                Source::Constant(compiler.new_constant(Value::String(key.clone())));
+                            let dst =
+                                Location::Register(compiler.frame_mut().unwrap().new_local(key));
+                            compiler.write(
+                                ByteCode::Field {
+                                    dst,
+                                    head: src,
+                                    field,
+                                },
+                                ln,
+                            );
+                        }
+                    }
+                }
             }
             Statement::Assign { op, path, expr } => {
                 let dst = path.compile(compiler);
