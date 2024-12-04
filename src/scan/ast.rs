@@ -35,6 +35,34 @@ pub enum Statement {
         args: Vec<Located<Expression>>,
     },
     Return(Option<Located<Expression>>),
+
+    If {
+        cond: Located<Expression>,
+        case: Located<Block>,
+        else_case: Option<Located<Block>>,
+    },
+    IfLet {
+        param: Located<Parameter>,
+        expr: Located<Expression>,
+        case: Located<Block>,
+        else_case: Option<Located<Block>>,
+    },
+    While {
+        cond: Located<Expression>,
+        body: Located<Block>,
+    },
+    WhileLet {
+        param: Located<Parameter>,
+        expr: Located<Expression>,
+        body: Located<Block>,
+    },
+    For {
+        param: Located<Parameter>,
+        iter: Located<Expression>,
+        body: Located<Block>,
+    },
+    Continue,
+    Break,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum AssignOperator {

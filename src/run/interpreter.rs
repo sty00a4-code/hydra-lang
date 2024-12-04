@@ -216,14 +216,20 @@ impl Interpreter {
                 cond,
                 addr,
             } => {
-                let cond = self.source(cond).unwrap_or_default();
-                if bool::from(cond) && !negativ {
+                let mut cond = bool::from(self.source(cond).unwrap_or_default());
+                if negativ {
+                    cond = !cond;
+                }
+                if cond {
                     self.call_frame_mut().unwrap().idx = addr;
                 }
             }
             ByteCode::JumpIfSome { negativ, src, addr } => {
-                let src = self.source(src).unwrap_or_default();
-                if src == Value::Null && !negativ {
+                let mut cond = self.source(src).unwrap_or_default() != Value::default();
+                if negativ {
+                    cond = !cond;
+                }
+                if cond {
                     self.call_frame_mut().unwrap().idx = addr;
                 }
             }

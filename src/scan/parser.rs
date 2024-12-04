@@ -203,14 +203,7 @@ impl Parsable for Statement {
                     pos.extend(&expr.pos);
                     parser.expect_eol()?;
                     parser.advance_line();
-                    Ok(Located::new(
-                        Self::Assign {
-                            op,
-                            path,
-                            expr,
-                        },
-                        pos,
-                    ))
+                    Ok(Located::new(Self::Assign { op, path, expr }, pos))
                 }
                 Token::ParanLeft => {
                     let mut pos = path.pos.clone();
@@ -359,6 +352,122 @@ impl Parsable for Statement {
                     pos,
                 ))
             }
+            Token::If => {
+                let mut pos = Position::new(parser.ln()..parser.ln(), index);
+                if let Some(Indexed {
+                    value: Token::Let,
+                    index: _,
+                }) = parser.peek()
+                {
+                    parser.expect_any()?;
+                    let param = Parameter::parse(parser)?;
+                    parser.expect(Token::Equal)?;
+                    let expr = Expression::parse(parser)?;
+                    let case = Block::parse(parser)?;
+                    pos.extend(&case.pos);
+                    let mut else_case = None;
+                    if let Some(Indexed {
+                        value: Token::Else,
+                        index: _,
+                    }) = parser.peek()
+                    {
+                        parser.expect_any()?;
+                        if let Some(Indexed {
+                            value: Token::If,
+                            index: _,
+                        }) = parser.peek()
+                        {
+                            let stat = Self::parse(parser)?;
+                            let stat_pos = stat.pos.clone();
+                            pos.extend(&stat_pos);
+                            else_case = Some(Located::new(Block { stats: vec![stat] }, stat_pos))
+                        } else {
+                            let block = Block::parse(parser)?;
+                            pos.extend(&block.pos);
+                            else_case = Some(block)
+                        }
+                    }
+                    return Ok(Located::new(
+                        Statement::IfLet {
+                            param,
+                            expr,
+                            case,
+                            else_case,
+                        },
+                        pos,
+                    ));
+                }
+                let cond = Expression::parse(parser)?;
+                let case = Block::parse(parser)?;
+                pos.extend(&case.pos);
+                let mut else_case = None;
+                if let Some(Indexed {
+                    value: Token::Else,
+                    index: _,
+                }) = parser.peek()
+                {
+                    parser.expect_any()?;
+                    if let Some(Indexed {
+                        value: Token::If,
+                        index: _,
+                    }) = parser.peek()
+                    {
+                        let stat = Self::parse(parser)?;
+                        let stat_pos = stat.pos.clone();
+                        pos.extend(&stat_pos);
+                        else_case = Some(Located::new(Block { stats: vec![stat] }, stat_pos))
+                    } else {
+                        let block = Block::parse(parser)?;
+                        pos.extend(&block.pos);
+                        else_case = Some(block)
+                    }
+                }
+                Ok(Located::new(
+                    Statement::If {
+                        cond,
+                        case,
+                        else_case,
+                    },
+                    pos,
+                ))
+            }
+            Token::While => {
+                let mut pos = Position::new(parser.ln()..parser.ln(), index);
+                if let Some(Indexed {
+                    value: Token::Let,
+                    index: _,
+                }) = parser.peek()
+                {
+                    parser.expect_any()?;
+                    let param = Parameter::parse(parser)?;
+                    parser.expect(Token::Equal)?;
+                    let expr = Expression::parse(parser)?;
+                    let body = Block::parse(parser)?;
+                    pos.extend(&body.pos);
+                    return Ok(Located::new(Statement::WhileLet { param, expr, body }, pos));
+                }
+                let cond = Expression::parse(parser)?;
+                let body = Block::parse(parser)?;
+                pos.extend(&body.pos);
+                Ok(Located::new(Statement::While { cond, body }, pos))
+            }
+            Token::For => {
+                let mut pos = Position::new(parser.ln()..parser.ln(), index);
+                let param = Parameter::parse(parser)?;
+                parser.expect(Token::In)?;
+                let iter = Expression::parse(parser)?;
+                let body = Block::parse(parser)?;
+                pos.extend(&body.pos);
+                Ok(Located::new(Statement::For { param, iter, body }, pos))
+            }
+            Token::Continue => Ok(Located::new(
+                Self::Continue,
+                Position::new(parser.ln()..parser.ln(), index),
+            )),
+            Token::Break => Ok(Located::new(
+                Self::Break,
+                Position::new(parser.ln()..parser.ln(), index),
+            )),
             token => Err(Located::new(
                 ParseError::UnexpectedToken(token),
                 Position::new(parser.ln()..parser.ln(), index),

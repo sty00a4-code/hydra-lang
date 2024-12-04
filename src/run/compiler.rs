@@ -63,6 +63,9 @@ impl Compiler {
         frame.closure.closures.push(closure);
         addr
     }
+    pub fn addr(&self) -> usize {
+        self.frame().unwrap().closure.code.len()
+    }
     pub fn write(&mut self, bytecode: ByteCode, ln: usize) -> usize {
         let frame = self.frame_mut().unwrap();
         let addr = frame.closure.code.len();
@@ -70,12 +73,10 @@ impl Compiler {
         frame.closure.lines.push(ln);
         addr
     }
-    pub fn overwrite(&mut self, bytecode: ByteCode, ln: usize) -> usize {
+    pub fn overwrite(&mut self, addr: usize, bytecode: ByteCode, ln: usize) {
         let frame = self.frame_mut().unwrap();
-        let addr = frame.closure.code.len();
-        frame.closure.code.push(bytecode);
-        frame.closure.lines.push(ln);
-        addr
+        frame.closure.code[addr] = bytecode;
+        frame.closure.lines[addr] = ln;
     }
     pub fn none(&mut self) -> usize {
         self.write(ByteCode::None, 0)
@@ -185,11 +186,14 @@ impl Compilable for Located<Block> {
             value: block,
             pos: _,
         } = self;
+        compiler.frame_mut().unwrap().push_scope();
         for stat in block.stats {
             if let Some(src) = stat.compile(compiler) {
+                compiler.frame_mut().unwrap().pop_scope();
                 return Some(src);
             }
         }
+        compiler.frame_mut().unwrap().pop_scope();
         None
     }
 }
@@ -447,6 +451,342 @@ impl Compilable for Located<Statement> {
                 compiler.write(ByteCode::Return { src: None }, ln);
                 return Some(Source::default());
             }
+            Statement::If {
+                cond,
+                case,
+                else_case,
+            } => {
+                compiler.frame_mut().unwrap().push_scope();
+                {
+                    let cond = cond.compile(compiler);
+                    let jump_to_else = compiler.none();
+                    case.compile(compiler);
+                    let jump_to_exit = compiler.none();
+                    let _else = compiler.addr();
+                    if let Some(else_case) = else_case {
+                        else_case.compile(compiler);
+                    }
+                    let exit = compiler.addr();
+                    compiler.overwrite(
+                        jump_to_else,
+                        ByteCode::JumpIf {
+                            negativ: true,
+                            cond,
+                            addr: _else,
+                        },
+                        ln,
+                    );
+                    compiler.overwrite(jump_to_exit, ByteCode::Jump { addr: exit }, ln);
+                }
+                compiler.frame_mut().unwrap().pop_scope();
+            }
+            Statement::IfLet {
+                param:
+                    Located {
+                        value: param,
+                        pos: param_pos,
+                    },
+                expr,
+                case,
+                else_case,
+            } => {
+                compiler.frame_mut().unwrap().push_scope();
+                {
+                    let src = expr.compile(compiler);
+                    let jump_to_else = compiler.none();
+                    compiler.frame_mut().unwrap().push_scope();
+                    {
+                        let ln = param_pos.ln.start;
+                        match param {
+                            Parameter::Ident(ident) => {
+                                let dst = Location::Register(
+                                    compiler.frame_mut().unwrap().new_local(ident),
+                                );
+                                compiler.move_checked(dst, src, ln);
+                            }
+                            Parameter::Vector(idents) | Parameter::Tuple(idents) => {
+                                for (
+                                    idx,
+                                    Located {
+                                        value: ident,
+                                        pos: _,
+                                    },
+                                ) in idents.into_iter().enumerate()
+                                {
+                                    let dst = Location::Register(
+                                        compiler.frame_mut().unwrap().new_local(ident),
+                                    );
+                                    compiler.write(
+                                        ByteCode::Field {
+                                            dst,
+                                            head: src,
+                                            field: Source::Int(idx as i64),
+                                        },
+                                        ln,
+                                    );
+                                }
+                            }
+                            Parameter::Map(keys) => {
+                                for Located { value: key, pos: _ } in keys {
+                                    let field = Source::Constant(
+                                        compiler.new_constant(Value::String(key.clone())),
+                                    );
+                                    let dst = Location::Register(
+                                        compiler.frame_mut().unwrap().new_local(key),
+                                    );
+                                    compiler.write(
+                                        ByteCode::Field {
+                                            dst,
+                                            head: src,
+                                            field,
+                                        },
+                                        ln,
+                                    );
+                                }
+                            }
+                        }
+                        case.compile(compiler);
+                    }
+                    compiler.frame_mut().unwrap().pop_scope();
+                    let jump_to_exit = compiler.none();
+                    let _else = compiler.addr();
+                    if let Some(else_case) = else_case {
+                        else_case.compile(compiler);
+                    }
+                    let exit = compiler.addr();
+                    compiler.overwrite(
+                        jump_to_else,
+                        ByteCode::JumpIfSome {
+                            negativ: true,
+                            src,
+                            addr: _else,
+                        },
+                        ln,
+                    );
+                    compiler.overwrite(jump_to_exit, ByteCode::Jump { addr: exit }, ln);
+                }
+                compiler.frame_mut().unwrap().pop_scope();
+            }
+            Statement::While { cond, body } => {
+                compiler.frame_mut().unwrap().push_scope();
+                {
+                    let start = compiler.addr();
+                    let cond = cond.compile(compiler);
+                    let jump_to_exit = compiler.none();
+                    body.compile(compiler);
+                    compiler.write(ByteCode::Jump { addr: start }, ln);
+                    let exit = compiler.addr();
+                    compiler.overwrite(
+                        jump_to_exit,
+                        ByteCode::JumpIf {
+                            negativ: true,
+                            cond,
+                            addr: exit,
+                        },
+                        ln,
+                    );
+                }
+                compiler.frame_mut().unwrap().pop_scope();
+            }
+            Statement::WhileLet {
+                param:
+                    Located {
+                        value: param,
+                        pos: param_pos,
+                    },
+                expr,
+                body,
+            } => {
+                compiler.frame_mut().unwrap().push_scope();
+                {
+                    let start = compiler.addr();
+                    let src = expr.compile(compiler);
+                    {
+                        let ln = param_pos.ln.start;
+                        match param {
+                            Parameter::Ident(ident) => {
+                                let dst = Location::Register(
+                                    compiler.frame_mut().unwrap().new_local(ident),
+                                );
+                                compiler.move_checked(dst, src, ln);
+                            }
+                            Parameter::Vector(idents) | Parameter::Tuple(idents) => {
+                                for (
+                                    idx,
+                                    Located {
+                                        value: ident,
+                                        pos: _,
+                                    },
+                                ) in idents.into_iter().enumerate()
+                                {
+                                    let dst = Location::Register(
+                                        compiler.frame_mut().unwrap().new_local(ident),
+                                    );
+                                    compiler.write(
+                                        ByteCode::Field {
+                                            dst,
+                                            head: src,
+                                            field: Source::Int(idx as i64),
+                                        },
+                                        ln,
+                                    );
+                                }
+                            }
+                            Parameter::Map(keys) => {
+                                for Located { value: key, pos: _ } in keys {
+                                    let field = Source::Constant(
+                                        compiler.new_constant(Value::String(key.clone())),
+                                    );
+                                    let dst = Location::Register(
+                                        compiler.frame_mut().unwrap().new_local(key),
+                                    );
+                                    compiler.write(
+                                        ByteCode::Field {
+                                            dst,
+                                            head: src,
+                                            field,
+                                        },
+                                        ln,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    let jump_to_exit = compiler.none();
+                    body.compile(compiler);
+                    compiler.write(ByteCode::Jump { addr: start }, ln);
+                    let exit = compiler.addr();
+                    compiler.overwrite(
+                        jump_to_exit,
+                        ByteCode::JumpIfSome {
+                            negativ: true,
+                            src,
+                            addr: exit,
+                        },
+                        ln,
+                    );
+                }
+                compiler.frame_mut().unwrap().pop_scope();
+            }
+            Statement::For {
+                param:
+                    Located {
+                        value: param,
+                        pos: param_pos,
+                    },
+                iter,
+                body,
+            } => {
+                compiler.frame_mut().unwrap().push_scope();
+                let iter = {
+                    let dst = Location::Register(compiler.frame_mut().unwrap().new_register());
+                    let iter = iter.compile(compiler);
+                    let arg_reg = compiler.frame_mut().unwrap().new_register();
+                    let arg_dst = Location::Register(arg_reg);
+                    compiler.move_checked(arg_dst, iter, ln);
+                    let func =
+                        Source::Global(compiler.new_constant(Value::String("iter".into())));
+                    compiler.write(
+                        ByteCode::Call {
+                            dst: Some(dst),
+                            func,
+                            start: arg_reg,
+                            amount: 1,
+                        },
+                        ln,
+                    );
+                    dst.into()
+                };
+                let start = compiler.addr();
+                {
+                    let dst_reg = compiler.frame_mut().unwrap().new_register();
+                    let src = Source::Register(dst_reg);
+                    let dst = Location::Register(dst_reg);
+                    {
+                        let arg_reg = compiler.frame_mut().unwrap().new_register();
+                        let arg_dst = Location::Register(arg_reg);
+                        compiler.move_checked(arg_dst, iter, ln);
+                        let next =
+                            Source::Global(compiler.new_constant(Value::String("next".into())));
+                        compiler.write(
+                            ByteCode::Call {
+                                dst: Some(dst),
+                                func: next,
+                                start: arg_reg,
+                                amount: 1,
+                            },
+                            ln,
+                        );
+                    }
+                    {
+                        let ln = param_pos.ln.start;
+                        match param {
+                            Parameter::Ident(ident) => {
+                                let dst = Location::Register(
+                                    compiler.frame_mut().unwrap().new_local(ident),
+                                );
+                                compiler.move_checked(dst, src, ln);
+                            }
+                            Parameter::Vector(idents) | Parameter::Tuple(idents) => {
+                                for (
+                                    idx,
+                                    Located {
+                                        value: ident,
+                                        pos: _,
+                                    },
+                                ) in idents.into_iter().enumerate()
+                                {
+                                    let dst = Location::Register(
+                                        compiler.frame_mut().unwrap().new_local(ident),
+                                    );
+                                    compiler.write(
+                                        ByteCode::Field {
+                                            dst,
+                                            head: src,
+                                            field: Source::Int(idx as i64),
+                                        },
+                                        ln,
+                                    );
+                                }
+                            }
+                            Parameter::Map(keys) => {
+                                for Located { value: key, pos: _ } in keys {
+                                    let field = Source::Constant(
+                                        compiler.new_constant(Value::String(key.clone())),
+                                    );
+                                    let dst = Location::Register(
+                                        compiler.frame_mut().unwrap().new_local(key),
+                                    );
+                                    compiler.write(
+                                        ByteCode::Field {
+                                            dst,
+                                            head: src,
+                                            field,
+                                        },
+                                        ln,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    let jump_to_exit = compiler.none();
+                    body.compile(compiler);
+                    compiler.write(ByteCode::Jump { addr: start }, ln);
+                    let exit = compiler.addr();
+                    compiler.overwrite(
+                        jump_to_exit,
+                        ByteCode::JumpIfSome {
+                            negativ: true,
+                            src,
+                            addr: exit,
+                        },
+                        ln,
+                    );
+                }
+                compiler.frame_mut().unwrap().pop_scope();
+            }
+            Statement::Continue => todo!(),
+            Statement::Break => todo!(),
         }
         None
     }
