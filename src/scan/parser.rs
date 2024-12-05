@@ -197,14 +197,6 @@ impl Parsable for Statement {
                 index,
             } = parser.expect_any()?;
             return match token {
-                token if let Some(op) = AssignOperator::token(&token) => {
-                    let expr = Expression::parse(parser)?;
-                    let mut pos = path.pos.clone();
-                    pos.extend(&expr.pos);
-                    parser.expect_eol()?;
-                    parser.advance_line();
-                    Ok(Located::new(Self::Assign { op, path, expr }, pos))
-                }
                 Token::ParanLeft => {
                     let mut pos = path.pos.clone();
                     let mut args = vec![];
@@ -270,10 +262,21 @@ impl Parsable for Statement {
                         pos,
                     ))
                 }
-                token => Err(Located::new(
-                    ParseError::UnexpectedToken(token),
-                    Position::new(parser.ln()..parser.ln(), index),
-                )),
+                token => {
+                    if let Some(op) = AssignOperator::token(&token) {
+                        let expr = Expression::parse(parser)?;
+                        let mut pos = path.pos.clone();
+                        pos.extend(&expr.pos);
+                        parser.expect_eol()?;
+                        parser.advance_line();
+                        Ok(Located::new(Self::Assign { op, path, expr }, pos))
+                    } else {
+                        Err(Located::new(
+                            ParseError::UnexpectedToken(token),
+                            Position::new(parser.ln()..parser.ln(), index),
+                        ))
+                    }
+                }
             };
         }
         let Indexed {

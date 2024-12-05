@@ -1,4 +1,3 @@
-#![feature(if_let_guard)]
 use run::{
     compiler::{Compilable, Compiler, Frame, Scope},
     interpreter::Interpreter,
