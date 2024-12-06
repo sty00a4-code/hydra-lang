@@ -39,6 +39,12 @@ impl Parser {
         }
     }
     #[inline(always)]
+    pub fn maybe_new_line(&mut self) {
+        while self.lines.first().and_then(|line| line.tokens.first()).is_none() {
+            self.advance_line();
+        }
+    }
+    #[inline(always)]
     pub fn eol(&self) -> bool {
         self.lines
             .first()
@@ -865,13 +871,16 @@ impl Parsable for Atom {
             Token::Char(v) => Ok(Located::new(Self::Char(v), pos)),
             Token::String(v) => Ok(Located::new(Self::String(v), pos)),
             Token::ParanLeft => {
+                parser.maybe_new_line();
                 let expr = Expression::parse(parser)?;
+                parser.maybe_new_line();
                 if let Some(Indexed {
                     value: Token::Comma,
                     index: _,
                 }) = parser.peek()
                 {
                     parser.expect(Token::Comma)?;
+                    parser.maybe_new_line();
                     if let Some(Indexed {
                         value: Token::ParanRight,
                         index: _,
@@ -882,12 +891,14 @@ impl Parsable for Atom {
                     }
                     let mut exprs = vec![expr];
                     let expr = Expression::parse(parser)?;
+                    parser.maybe_new_line();
                     exprs.push(expr);
                     while let Some(Indexed { value: token, .. }) = parser.peek() {
                         if token == &Token::ParanRight {
                             break;
                         }
                         parser.expect(Token::Comma)?;
+                        parser.maybe_new_line();
                         if let Some(Indexed {
                             value: Token::ParanRight,
                             index: _,
@@ -897,6 +908,7 @@ impl Parsable for Atom {
                         }
                         let expr = Expression::parse(parser)?;
                         exprs.push(expr);
+                        parser.maybe_new_line();
                     }
                     parser.expect(Token::ParanRight)?;
                     return Ok(Located::new(Self::Tuple(exprs), pos));
@@ -913,14 +925,17 @@ impl Parsable for Atom {
                     parser.expect(Token::BracketRight)?;
                     Ok(Located::new(Self::Vector(vec![]), pos))
                 } else {
+                    parser.maybe_new_line();
                     let mut exprs = vec![];
                     let expr = Expression::parse(parser)?;
+                    parser.maybe_new_line();
                     exprs.push(expr);
                     while let Some(Indexed { value: token, .. }) = parser.peek() {
                         if token == &Token::BracketRight {
                             break;
                         }
                         parser.expect(Token::Comma)?;
+                        parser.maybe_new_line();
                         if let Some(Indexed {
                             value: Token::BracketRight,
                             index: _,
@@ -930,6 +945,7 @@ impl Parsable for Atom {
                         }
                         let expr = Expression::parse(parser)?;
                         exprs.push(expr);
+                        parser.maybe_new_line();
                     }
                     pos.col.end = parser.expect(Token::BracketRight)?.index.end;
                     Ok(Located::new(Self::Vector(exprs), pos))
@@ -944,16 +960,19 @@ impl Parsable for Atom {
                     parser.expect(Token::BraceRight)?;
                     Ok(Located::new(Self::Map(vec![]), pos))
                 } else {
+                    parser.maybe_new_line();
                     let mut exprs = vec![];
                     let field = Parameter::parse_ident(parser)?;
                     parser.expect(Token::Equal)?;
                     let expr = Expression::parse(parser)?;
+                    parser.maybe_new_line();
                     exprs.push((field, expr));
                     while let Some(Indexed { value: token, .. }) = parser.peek() {
                         if token == &Token::BraceRight {
                             break;
                         }
                         parser.expect(Token::Comma)?;
+                        parser.maybe_new_line();
                         if let Some(Indexed {
                             value: Token::BraceRight,
                             index: _,
@@ -964,6 +983,7 @@ impl Parsable for Atom {
                         let field = Parameter::parse_ident(parser)?;
                         parser.expect(Token::Equal)?;
                         let expr = Expression::parse(parser)?;
+                        parser.maybe_new_line();
                         exprs.push((field, expr));
                     }
                     pos.col.end = parser.expect(Token::BraceRight)?.index.end;
