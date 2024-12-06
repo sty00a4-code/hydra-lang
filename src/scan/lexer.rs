@@ -66,7 +66,7 @@ impl Display for LexError {
     }
 }
 impl Error for LexError {}
-impl<'source> Lexer<'source> {
+impl Lexer<'_> {
     pub fn lex(self) -> Result<Vec<Line>, Located<LexError>> {
         let (lines, errors): (Vec<_>, Vec<_>) = self.partition(Result::is_ok);
         let mut errors: Vec<_> = errors.into_iter().map(Result::unwrap_err).rev().collect();
@@ -77,7 +77,7 @@ impl<'source> Lexer<'source> {
         Ok(lines)
     }
 }
-impl<'source> Iterator for Lexer<'source> {
+impl Iterator for Lexer<'_> {
     type Item = Result<Line, Located<LexError>>;
     fn next(&mut self) -> Option<Self::Item> {
         let (ln, line) = self.lines.next()?;
@@ -105,7 +105,7 @@ impl<'source> Iterator for Lexer<'source> {
         }))
     }
 }
-impl<'source> Iterator for LineLexer<'source> {
+impl Iterator for LineLexer<'_> {
     type Item = Result<Indexed<Token>, Located<LexError>>;
     fn next(&mut self) -> Option<Self::Item> {
         while let Some((_, c)) = self.chars.peek() {
