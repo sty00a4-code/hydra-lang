@@ -225,7 +225,11 @@ native_fn!(_iter (i args): value = typed!(args) => {
                 fn_next: Rc::new(IteratorObject::_next)
             })))))
         }
-        Value::NativeObject(object) => {
+        Value::NativeObject(ref object) => {
+            let next = object.lock().unwrap().get("next").unwrap_or_default();
+            if let Value::Fn(_) = next {
+                return Ok(Some(value))
+            }
             object.lock().unwrap().call("iter", i, args.map(|(_, v)| v).collect())
         }
         value => Err(format!("can't iterate over {}", value.typ()).into())
