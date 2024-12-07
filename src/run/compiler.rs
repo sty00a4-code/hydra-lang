@@ -56,6 +56,9 @@ impl Compiler {
     }
     pub fn new_constant(&mut self, value: Value) -> u16 {
         let frame = self.frame_mut().unwrap();
+        if let Some(addr) = frame.closure.constants.iter().position(|v| v == &value) {
+            return addr as u16
+        }
         let addr = frame.closure.constants.len() as u16;
         frame.closure.constants.push(value);
         addr
@@ -91,7 +94,6 @@ impl Compiler {
         }
     }
     pub fn overwrite_jump(&mut self, addr: usize, to: usize, ln: usize) {
-        dbg!(addr, to);
         if to != addr + 1 {
             self.overwrite(addr, ByteCode::Jump { addr: to }, ln);
         }
@@ -615,7 +617,7 @@ impl Compilable for Located<Statement> {
                 let cond = cond.compile(compiler);
                 let jump_to_exit = compiler.none();
                 body.compile(compiler);
-                compiler.write(ByteCode::Jump { addr: start }, ln);
+                compiler.alloc_continue(ln);
                 let exit = compiler.addr();
                 compiler.overwrite(
                     jump_to_exit,
@@ -702,7 +704,7 @@ impl Compilable for Located<Statement> {
                 }
                 let jump_to_exit = compiler.none();
                 body.compile(compiler);
-                compiler.write(ByteCode::Jump { addr: start }, ln);
+                compiler.alloc_continue(ln);
                 let exit = compiler.addr();
                 compiler.overwrite(
                     jump_to_exit,
@@ -820,7 +822,7 @@ impl Compilable for Located<Statement> {
                 }
                 let jump_to_exit = compiler.none();
                 body.compile(compiler);
-                compiler.write(ByteCode::Jump { addr: start }, ln);
+                compiler.alloc_continue(ln);
                 let exit = compiler.addr();
                 compiler.overwrite(
                     jump_to_exit,
