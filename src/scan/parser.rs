@@ -474,14 +474,22 @@ impl Parsable for Statement {
                 pos.extend(&body.pos);
                 Ok(Located::new(Statement::For { param, iter, body }, pos))
             }
-            Token::Continue => Ok(Located::new(
-                Self::Continue,
-                Position::new(parser.ln()..parser.ln(), index),
-            )),
-            Token::Break => Ok(Located::new(
-                Self::Break,
-                Position::new(parser.ln()..parser.ln(), index),
-            )),
+            Token::Continue => {
+                parser.expect_eol()?;
+                parser.advance_line();
+                Ok(Located::new(
+                    Self::Continue,
+                    Position::new(parser.ln()..parser.ln(), index),
+                ))
+            }
+            Token::Break => {
+                parser.expect_eol()?;
+                parser.advance_line();
+                Ok(Located::new(
+                    Self::Break,
+                    Position::new(parser.ln()..parser.ln(), index),
+                ))
+            }
             token => Err(Located::new(
                 ParseError::UnexpectedToken(token),
                 Position::new(parser.ln()..parser.ln(), index),

@@ -12,12 +12,12 @@ pub enum ByteCode {
         addr: usize,
     },
     JumpIf {
-        negativ: bool,
+        negative: bool,
         cond: Source,
         addr: usize,
     },
     JumpIfSome {
-        negativ: bool,
+        negative: bool,
         src: Source,
         addr: usize,
     },
@@ -274,22 +274,22 @@ impl Display for ByteCode {
             ByteCode::None => write!(f, "none"),
             ByteCode::Jump { addr } => write!(f, "jump [{addr:04}]"),
             ByteCode::JumpIf {
-                negativ: false,
+                negative: false,
                 cond,
                 addr,
             } => write!(f, "jumpif     {cond} [{addr:04}]"),
             ByteCode::JumpIf {
-                negativ: true,
+                negative: true,
                 cond,
                 addr,
             } => write!(f, "jumpif not {cond} [{addr:04}]"),
             ByteCode::JumpIfSome {
-                negativ: false,
+                negative: false,
                 src,
                 addr,
             } => write!(f, "jumpifsome {src} [{addr:04}]"),
             ByteCode::JumpIfSome {
-                negativ: true,
+                negative: true,
                 src,
                 addr,
             } => write!(f, "jumpifnone {src} [{addr:04}]"),

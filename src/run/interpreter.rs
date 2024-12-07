@@ -212,21 +212,21 @@ impl Interpreter {
                 self.call_frame_mut().unwrap().idx = addr;
             }
             ByteCode::JumpIf {
-                negativ,
+                negative,
                 cond,
                 addr,
             } => {
                 let mut cond = bool::from(self.source(cond).unwrap_or_default());
-                if negativ {
+                if negative {
                     cond = !cond;
                 }
                 if cond {
                     self.call_frame_mut().unwrap().idx = addr;
                 }
             }
-            ByteCode::JumpIfSome { negativ, src, addr } => {
+            ByteCode::JumpIfSome { negative, src, addr } => {
                 let mut cond = self.source(src).unwrap_or_default() != Value::default();
-                if negativ {
+                if negative {
                     cond = !cond;
                 }
                 if cond {
