@@ -267,7 +267,7 @@ impl Iterator for LineLexer<'_> {
                     },
                     Err(err) => return Some(Err(err)),
                 };
-                if let Some((col, '\'')) = dbg!(self.chars.next()) {
+                if let Some((col, '\'')) = self.chars.next() {
                     index.end = col;
                     Some(Ok(Indexed::new(Token::Char(c), index)))
                 } else {
