@@ -652,6 +652,7 @@ impl Compilable for Located<Statement> {
                 compiler.frame_mut().unwrap().push_scope();
                 let start = compiler.addr();
                 let src = expr.compile(compiler);
+                let jump_to_exit = compiler.none();
                 {
                     let ln = param_pos.ln.start;
                     match param {
@@ -702,7 +703,6 @@ impl Compilable for Located<Statement> {
                         }
                     }
                 }
-                let jump_to_exit = compiler.none();
                 body.compile(compiler);
                 compiler.alloc_continue(ln);
                 let exit = compiler.addr();
@@ -770,6 +770,7 @@ impl Compilable for Located<Statement> {
                         ln,
                     );
                 }
+                let jump_to_exit = compiler.none();
                 {
                     let ln = param_pos.ln.start;
                     match param {
@@ -820,7 +821,6 @@ impl Compilable for Located<Statement> {
                         }
                     }
                 }
-                let jump_to_exit = compiler.none();
                 body.compile(compiler);
                 compiler.alloc_continue(ln);
                 let exit = compiler.addr();

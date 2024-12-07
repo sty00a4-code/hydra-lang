@@ -101,6 +101,14 @@ pub fn import(interpreter: &mut Interpreter) {
     set_global!(interpreter: "error" = Value::Fn(FnKind::Native(Rc::new(_error))));
     set_global!(interpreter: "iter" = Value::Fn(FnKind::Native(Rc::new(_iter))));
     set_global!(interpreter: "next" = Value::Fn(FnKind::Native(Rc::new(_next))));
+    set_global!(interpreter: "int" = Value::Fn(FnKind::Native(Rc::new(_int))));
+    set_global!(interpreter: "float" = Value::Fn(FnKind::Native(Rc::new(_float))));
+    set_global!(interpreter: "bool" = Value::Fn(FnKind::Native(Rc::new(_bool))));
+    set_global!(interpreter: "char" = Value::Fn(FnKind::Native(Rc::new(_char))));
+    set_global!(interpreter: "str" = Value::Fn(FnKind::Native(Rc::new(_str))));
+    set_global!(interpreter: "vec" = Value::Fn(FnKind::Native(Rc::new(_vec))));
+    set_global!(interpreter: "tuple" = Value::Fn(FnKind::Native(Rc::new(_tuple))));
+    set_global!(interpreter: "enumerate" = Value::Fn(FnKind::Native(Rc::new(_enumerate))));
 }
 
 native_fn!(_print (_i args): => {
@@ -241,5 +249,137 @@ native_fn!(_next (i args): value = typed!(args) => {
             object.lock().unwrap().call_mut("next", i, args.map(|(_, v)| v).collect())
         }
         value => Err(format!("can't get next iteration of {}", value.typ()).into())
+    }
+});
+
+native_fn!(_int (_i args): value = typed!(args) => {
+    Ok(Some(Value::Int(match value {
+        Value::Int(v) => v,
+        Value::Float(v) => v as i64,
+        Value::Bool(v) => if v { 1 } else { 0 },
+        Value::Char(v) => v as u8 as i64,
+        Value::String(v) => if let Ok(v) = v.parse::<i64>() { v } else { return Ok(None); },
+        _ => return Ok(None)
+    })))
+});
+native_fn!(_float (_i args): value = typed!(args) => {
+    Ok(Some(Value::Float(match value {
+        Value::Int(v) => v as f64,
+        Value::Float(v) => v,
+        Value::Bool(v) => if v { 1.0 } else { 0.0 },
+        Value::Char(v) => v as u8 as f64,
+        Value::String(v) => if let Ok(v) = v.parse::<f64>() { v } else { return Ok(None); },
+        _ => return Ok(None)
+    })))
+});
+native_fn!(_bool (_i args): value = typed!(args) => {
+    Ok(Some(Value::Bool(bool::from(value))))
+});
+native_fn!(_char (_i args): value = typed!(args) => {
+    Ok(Some(Value::Char(match value {
+        Value::Int(v) => if let Ok(v) = TryInto::<u8>::try_into(v) { v as char } else { todo!() },
+        Value::Float(v) => if let Ok(v) = TryInto::<u8>::try_into(v as i64) { v as char } else { todo!() },
+        Value::Char(v) => v,
+        _ => return Ok(None)
+    })))
+});
+native_fn!(_str (_i args): => {
+    Ok(Some(Value::String(args.map(|(_, v)| v.to_string()).collect::<Vec<String>>().join(""))))
+});
+native_fn!(_vec (_i args): value = typed!(args) => {
+    if args.len() == 0 {
+        Ok(Some(Value::Vector(Arc::new(Mutex::new(match value {
+            Value::Vector(arc) => arc.lock().unwrap().clone(),
+            Value::Tuple(arc) => arc.lock().unwrap().to_vec(),
+            Value::Map(arc) => arc
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|(k, v)| Value::Tuple(Arc::new(Mutex::new(Box::new([Value::String(k.clone()), v.clone()])))))
+                .collect(),
+            value => vec![value],
+        })))))
+    } else {
+        let mut values: Vec<Value> = args.map(|(_, v)| v).collect();
+        values.insert(0, value);
+        Ok(Some(Value::Vector(Arc::new(Mutex::new(values)))))
+    }
+});
+native_fn!(_tuple (_i args): value = typed!(args) => {
+    if args.len() == 0 {
+        Ok(Some(Value::Tuple(Arc::new(Mutex::new(match value {
+            Value::Vector(arc) => arc.lock().unwrap().clone().into_boxed_slice(),
+            Value::Tuple(arc) => arc.lock().unwrap().clone(),
+            Value::Map(arc) => arc
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|(k, v)| Value::Tuple(Arc::new(Mutex::new(Box::new([Value::String(k.clone()), v.clone()])))))
+                .collect(),
+            value => Box::new([value]),
+        })))))
+    } else {
+        let mut values: Vec<Value> = args.map(|(_, v)| v).collect();
+        values.insert(0, value);
+        Ok(Some(Value::Vector(Arc::new(Mutex::new(values)))))
+    }
+});
+native_fn!(_enumerate (i args): value = typed!(args) => {
+    match value {
+        Value::Vector(values) => {
+            Ok(Some(Value::NativeObject(Arc::new(Mutex::new(IteratorObject {
+                iter: Box::new(values
+                    .lock()
+                    .unwrap()
+                    .clone()
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, v)| Value::Tuple(Arc::new(Mutex::new(Box::new([Value::Int(i as i64), v])))))
+                ),
+                fn_next: Rc::new(IteratorObject::_next)
+            })))))
+        }
+        Value::Tuple(values) => {
+            Ok(Some(Value::NativeObject(Arc::new(Mutex::new(IteratorObject {
+                #[allow(clippy::unnecessary_to_owned)]
+                iter: Box::new(values
+                    .lock()
+                    .unwrap()
+                    .to_vec()
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, v)| Value::Tuple(Arc::new(Mutex::new(Box::new([Value::Int(i as i64), v])))))
+                ),
+                fn_next: Rc::new(IteratorObject::_next)
+            })))))
+        }
+        Value::Map(values) => {
+            Ok(Some(Value::NativeObject(Arc::new(Mutex::new(IteratorObject {
+                iter: Box::new(values
+                    .lock()
+                    .unwrap()
+                    .clone()
+                    .into_keys()
+                    .enumerate()
+                    .map(|(i, v)| Value::Tuple(Arc::new(Mutex::new(Box::new([Value::Int(i as i64), Value::String(v)])))))
+                ),
+                fn_next: Rc::new(IteratorObject::_next)
+            })))))
+        }
+        Value::String(string) => {
+            Ok(Some(Value::NativeObject(Arc::new(Mutex::new(IteratorObject {
+                iter: Box::new(string
+                    .into_bytes()
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, v)| Value::Tuple(Arc::new(Mutex::new(Box::new([Value::Int(i as i64), Value::Char(v as char)])))))
+                ),
+                fn_next: Rc::new(IteratorObject::_next)
+            })))))
+        }
+        Value::NativeObject(ref object) => {
+            object.lock().unwrap().call("enumerate", i, args.map(|(_, v)| v).collect())
+        }
+        value => Err(format!("can't enumerate over {}", value.typ()).into())
     }
 });
