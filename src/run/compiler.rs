@@ -1,16 +1,14 @@
-use std::{collections::HashMap, rc::Rc};
-
+use super::{
+    code::{ByteCode, Closure, Location, Source},
+    value::Value,
+};
 use crate::scan::{
     ast::{
         AssignOperator, Atom, BinaryOperator, Block, Chunk, Expression, Parameter, Path, Statement,
     },
     position::Located,
 };
-
-use super::{
-    code::{ByteCode, Closure, Location, Source},
-    value::Value,
-};
+use std::{collections::HashMap, rc::Rc};
 
 #[derive(Debug, Default)]
 pub struct Compiler {
@@ -684,8 +682,7 @@ impl Compilable for Located<Statement> {
                     let arg_reg = compiler.frame_mut().unwrap().new_register();
                     let arg_dst = Location::Register(arg_reg);
                     compiler.move_checked(arg_dst, iter, ln);
-                    let func =
-                        Source::Global(compiler.new_constant(Value::String("iter".into())));
+                    let func = Source::Global(compiler.new_constant(Value::String("iter".into())));
                     compiler.write(
                         ByteCode::Call {
                             dst: Some(dst),

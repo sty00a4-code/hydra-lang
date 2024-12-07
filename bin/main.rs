@@ -1,7 +1,6 @@
 extern crate clap;
 extern crate hydra_lang;
 use hydra_lang::{
-    std_hydra,
     lex, parse,
     run::{
         compiler::{Compilable, Compiler, Frame, Scope},
@@ -15,6 +14,7 @@ use hydra_lang::{
         parser::{Parsable, Parser},
         position::{Located, Position},
     },
+    std_hydra,
 };
 use std::{
     error::Error,

@@ -40,7 +40,12 @@ impl Parser {
     }
     #[inline(always)]
     pub fn maybe_new_line(&mut self) {
-        while self.lines.first().and_then(|line| line.tokens.first()).is_none() {
+        while self
+            .lines
+            .first()
+            .and_then(|line| line.tokens.first())
+            .is_none()
+        {
             self.advance_line();
         }
     }

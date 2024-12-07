@@ -1,6 +1,5 @@
-use crate::scan::ast::{BinaryOperator, UnaryOperator};
-
 use super::value::Value;
+use crate::scan::ast::{BinaryOperator, UnaryOperator};
 use std::{fmt::Display, rc::Rc};
 
 #[repr(u8)]

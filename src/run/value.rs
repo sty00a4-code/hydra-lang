@@ -46,12 +46,26 @@ pub trait NativeObject {
         None
     }
     #[allow(unused_variables)]
-    fn call(&self, key: &str, interpreter: &mut Interpreter, args: Vec<Value>) -> Result<Option<Value>, Box<dyn Error>> {
-        Err(RunTimeErrorKind::CannotCall(Value::default().typ()).to_string().into())
+    fn call(
+        &self,
+        key: &str,
+        interpreter: &mut Interpreter,
+        args: Vec<Value>,
+    ) -> Result<Option<Value>, Box<dyn Error>> {
+        Err(RunTimeErrorKind::CannotCall(Value::default().typ())
+            .to_string()
+            .into())
     }
     #[allow(unused_variables)]
-    fn call_mut(&mut self, key: &str, interpreter: &mut Interpreter, args: Vec<Value>) -> Result<Option<Value>, Box<dyn Error>> {
-        Err(RunTimeErrorKind::CannotCall(Value::default().typ()).to_string().into())
+    fn call_mut(
+        &mut self,
+        key: &str,
+        interpreter: &mut Interpreter,
+        args: Vec<Value>,
+    ) -> Result<Option<Value>, Box<dyn Error>> {
+        Err(RunTimeErrorKind::CannotCall(Value::default().typ())
+            .to_string()
+            .into())
     }
 }
 
