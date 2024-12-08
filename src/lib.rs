@@ -76,3 +76,128 @@ pub fn run(
         pos: Position::new(err.ln..err.ln, 0..0),
     })
 }
+
+#[macro_export]
+macro_rules! set_global {
+    ($interpreter:ident: $key:literal = $value:expr) => {
+        $interpreter
+            .globals
+            .insert($key.into(), Arc::new(Mutex::new($value)))
+    };
+}
+#[macro_export]
+macro_rules! typed {
+    ($args:ident) => {{
+        $args.next().map(|(_, v)| v).unwrap_or_default()
+    }};
+    ($args:ident: $typ:literal) => {{
+        let Some((idx, arg)) = $args.next() else {
+            return Err(format!(
+                "expected {} for argument #last, got {}",
+                $typ,
+                Value::default().typ()
+            )
+            .into());
+        };
+        let Value::NativeObject(arc) = arg else {
+            return Err(format!(
+                "expected {} for argument #{}, got {}",
+                $typ,
+                idx + 1,
+                arg.typ()
+            )
+            .into());
+        };
+        {
+            let object = arc.lock().unwrap();
+            if object.typ() != $typ {
+                return Err(format!(
+                    "expected {} for argument #{}, got {}",
+                    $typ,
+                    idx + 1,
+                    object.typ()
+                )
+                .into());
+            }
+        }
+        Arc::clone(&arc)
+    }};
+    ($args:ident: $typ:ident) => {{
+        let Some((idx, arg)) = $args.next() else {
+            return Err(format!(
+                "expected {} for argument #last, got {}",
+                Value::$typ(Default::default()).typ(),
+                Value::default().typ()
+            )
+            .into());
+        };
+        if let Value::$typ(value) = arg {
+            value
+        } else {
+            return Err(format!(
+                "expected {} for argument #{}, got {}",
+                Value::$typ(Default::default()).typ(),
+                idx + 1,
+                arg.typ()
+            )
+            .into());
+        }
+    }};
+}
+#[macro_export]
+macro_rules! define_native_fn {
+    ($fn_name:ident ($interpreter:ident $args:ident!) $body:block) => {
+        pub fn $fn_name($interpreter: &mut Interpreter, $args: Vec<Value>) -> Result<Option<Value>, Box<dyn Error>> {
+            $body
+        }
+    };
+    ($fn_name:ident ($interpreter:ident $args:ident): $($name:ident = $macro:expr),* => $body:block) => {
+        pub fn $fn_name($interpreter: &mut Interpreter, $args: Vec<Value>) -> Result<Option<Value>, Box<dyn Error>> {
+            #[allow(unused_mut)]
+            #[allow(unused_variables)]
+            let mut $args = $args.into_iter().enumerate();
+            $(
+                let $name = $macro;
+            ) *
+            $body
+        }
+    };
+}
+#[macro_export]
+macro_rules! native_fn {
+    ($name:ident) => {
+        Value::Fn(FnKind::Native(Rc::new($name)))
+    };
+}
+#[macro_export]
+macro_rules! make_vec {
+    ($value:expr) => {
+        Value::Vector(Arc::new(Mutex::new($value)))
+    };
+    ($($value:expr),*) => {
+        Value::Vector(Arc::new(Mutex::new(vec![$($value),*])))
+    };
+}
+#[macro_export]
+macro_rules! make_tuple {
+    ($value:expr) => {
+        Value::Tuple(Arc::new(Mutex::new($value.into())))
+    };
+    ($($value:expr),*) => {
+        Value::Tuple(Arc::new(Mutex::new(Box::new([$($value),*]))))
+    };
+}
+#[macro_export]
+macro_rules! make_map {
+    ($($key:literal = $value:expr),*) => {{
+        use std::collections::HashMap;
+        let mut map = HashMap::new();
+        $(
+            map.insert($key.into(), $value.into());
+        ) *
+        Value::Map(Arc::new(Mutex::new(map)))
+    }};
+    ($value:expr) => {
+        Value::Map(Arc::new(Mutex::new($value.into())))
+    };
+}

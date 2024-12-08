@@ -756,3 +756,145 @@ impl TryFrom<Value> for HashMap<String, Value> {
         })
     }
 }
+impl From<i8> for Value {
+    fn from(value: i8) -> Self {
+        Self::Int(value.into())
+    }
+}
+impl From<i16> for Value {
+    fn from(value: i16) -> Self {
+        Self::Int(value.into())
+    }
+}
+impl From<i32> for Value {
+    fn from(value: i32) -> Self {
+        Self::Int(value.into())
+    }
+}
+impl From<i64> for Value {
+    fn from(value: i64) -> Self {
+        Self::Int(value)
+    }
+}
+impl From<f32> for Value {
+    fn from(value: f32) -> Self {
+        Self::Float(value.into())
+    }
+}
+impl From<f64> for Value {
+    fn from(value: f64) -> Self {
+        Self::Float(value)
+    }
+}
+impl From<bool> for Value {
+    fn from(value: bool) -> Self {
+        Self::Bool(value)
+    }
+}
+impl From<char> for Value {
+    fn from(value: char) -> Self {
+        Self::Char(value)
+    }
+}
+impl From<&str> for Value {
+    fn from(value: &str) -> Self {
+        Self::String(value.to_string())
+    }
+}
+impl From<String> for Value {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}
+impl<T: Into<Value> + Clone> From<&[T]> for Value {
+    fn from(value: &[T]) -> Self {
+        Self::Vector(Arc::new(Mutex::new(
+            value.iter().map(|v| v.clone().into()).collect(),
+        )))
+    }
+}
+impl<T: Into<Value> + Clone> From<Box<[T]>> for Value {
+    fn from(value: Box<[T]>) -> Self {
+        Self::Vector(Arc::new(Mutex::new(
+            value.iter().map(|v| v.clone().into()).collect(),
+        )))
+    }
+}
+impl<T: Into<Value> + Clone, const SIZE: usize> From<[T; SIZE]> for Value {
+    fn from(value: [T; SIZE]) -> Self {
+        Self::Vector(Arc::new(Mutex::new(
+            value.iter().map(|v| v.clone().into()).collect(),
+        )))
+    }
+}
+impl<T: Into<Value>> From<(T,)> for Value {
+    fn from(value: (T,)) -> Self {
+        Self::Tuple(Arc::new(Mutex::new(Box::new([value.0.into()]))))
+    }
+}
+impl<T: Into<Value>> From<(T, T)> for Value {
+    fn from(value: (T, T)) -> Self {
+        Self::Tuple(Arc::new(Mutex::new(Box::new([
+            value.0.into(),
+            value.1.into(),
+        ]))))
+    }
+}
+impl<T: Into<Value>> From<(T, T, T)> for Value {
+    fn from(value: (T, T, T)) -> Self {
+        Self::Tuple(Arc::new(Mutex::new(Box::new([
+            value.0.into(),
+            value.1.into(),
+            value.2.into(),
+        ]))))
+    }
+}
+impl<T: Into<Value>> From<(T, T, T, T)> for Value {
+    fn from(value: (T, T, T, T)) -> Self {
+        Self::Tuple(Arc::new(Mutex::new(Box::new([
+            value.0.into(),
+            value.1.into(),
+            value.2.into(),
+            value.3.into(),
+        ]))))
+    }
+}
+impl<T: Into<Value>> From<(T, T, T, T, T)> for Value {
+    fn from(value: (T, T, T, T, T)) -> Self {
+        Self::Tuple(Arc::new(Mutex::new(Box::new([
+            value.0.into(),
+            value.1.into(),
+            value.2.into(),
+            value.3.into(),
+            value.4.into(),
+        ]))))
+    }
+}
+impl<T: Into<Value>> From<HashMap<String, T>> for Value {
+    fn from(value: HashMap<String, T>) -> Self {
+        Self::Map(Arc::new(Mutex::new(
+            value.into_iter().map(|(k, v)| (k, v.into())).collect(),
+        )))
+    }
+}
+impl<T: Into<Value>> From<HashMap<&str, T>> for Value {
+    fn from(value: HashMap<&str, T>) -> Self {
+        Self::Map(Arc::new(Mutex::new(
+            value.into_iter().map(|(k, v)| (k.to_string(), v.into())).collect(),
+        )))
+    }
+}
+impl<T: Into<Value>> From<Vec<(String, T)>> for Value {
+    fn from(value: Vec<(String, T)>) -> Self {
+        Self::Map(Arc::new(Mutex::new(
+            value.into_iter().map(|(k, v)| (k, v.into())).collect(),
+        )))
+    }
+}
+impl<T: Into<Value>> From<Vec<(&str, T)>> for Value {
+    fn from(value: Vec<(&str, T)>) -> Self {
+        Self::Map(Arc::new(Mutex::new(
+            value.into_iter().map(|(k, v)| (k.to_string(), v.into())).collect(),
+        )))
+    }
+}

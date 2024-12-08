@@ -2,6 +2,7 @@ use crate::run::{
     interpreter::{Interpreter, RunTimeErrorKind},
     value::{FnKind, NativeFn, NativeObject, Value},
 };
+use crate::*;
 use std::{
     error::Error,
     io::Write,
@@ -9,124 +10,40 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-macro_rules! set_global {
-    ($interpreter:ident: $key:literal = $value:expr) => {
-        $interpreter
-            .globals
-            .insert($key.into(), Arc::new(Mutex::new($value)))
-    };
-}
-macro_rules! typed {
-    ($args:ident) => {{
-        $args.next().map(|(_, v)| v).unwrap_or_default()
-    }};
-    ($args:ident: $typ:literal) => {{
-        let Some((idx, arg)) = $args.next() else {
-            return Err(format!(
-                "expected {} for argument #last, got {}",
-                $typ,
-                Value::default().typ()
-            )
-            .into());
-        };
-        let Value::NativeObject(arc) = arg else {
-            return Err(format!(
-                "expected {} for argument #{}, got {}",
-                $typ,
-                idx + 1,
-                arg.typ()
-            )
-            .into());
-        };
-        {
-            let object = arc.lock().unwrap();
-            if object.typ() != $typ {
-                return Err(format!(
-                    "expected {} for argument #{}, got {}",
-                    $typ,
-                    idx + 1,
-                    object.typ()
-                )
-                .into());
-            }
-        }
-        Arc::clone(&arc)
-    }};
-    ($args:ident: $typ:ident) => {{
-        let Some((idx, arg)) = $args.next() else {
-            return Err(format!(
-                "expected {} for argument #last, got {}",
-                Value::$typ(Default::default()).typ(),
-                Value::default().typ()
-            )
-            .into());
-        };
-        if let Value::$typ(value) = arg {
-            value
-        } else {
-            return Err(format!(
-                "expected {} for argument #{}, got {}",
-                Value::$typ(Default::default()).typ(),
-                idx + 1,
-                arg.typ()
-            )
-            .into());
-        }
-    }};
-}
-macro_rules! native_fn {
-    ($fn_name:ident ($interpreter:ident $args:ident!) $body:block) => {
-        pub fn $fn_name($interpreter: &mut Interpreter, $args: Vec<Value>) -> Result<Option<Value>, Box<dyn Error>> {
-            $body
-        }
-    };
-    ($fn_name:ident ($interpreter:ident $args:ident): $($name:ident = $macro:expr),* => $body:block) => {
-        pub fn $fn_name($interpreter: &mut Interpreter, $args: Vec<Value>) -> Result<Option<Value>, Box<dyn Error>> {
-            #[allow(unused_mut)]
-            #[allow(unused_variables)]
-            let mut $args = $args.into_iter().enumerate();
-            $(
-                let $name = $macro;
-            ) *
-            $body
-        }
-    };
-}
-
 pub fn import(interpreter: &mut Interpreter) {
-    set_global!(interpreter: "print" = Value::Fn(FnKind::Native(Rc::new(_print))));
-    set_global!(interpreter: "write" = Value::Fn(FnKind::Native(Rc::new(_write))));
-    set_global!(interpreter: "input" = Value::Fn(FnKind::Native(Rc::new(_input))));
-    set_global!(interpreter: "debug" = Value::Fn(FnKind::Native(Rc::new(_debug))));
-    set_global!(interpreter: "error" = Value::Fn(FnKind::Native(Rc::new(_error))));
-    set_global!(interpreter: "iter" = Value::Fn(FnKind::Native(Rc::new(_iter))));
-    set_global!(interpreter: "next" = Value::Fn(FnKind::Native(Rc::new(_next))));
-    set_global!(interpreter: "int" = Value::Fn(FnKind::Native(Rc::new(_int))));
-    set_global!(interpreter: "float" = Value::Fn(FnKind::Native(Rc::new(_float))));
-    set_global!(interpreter: "bool" = Value::Fn(FnKind::Native(Rc::new(_bool))));
-    set_global!(interpreter: "char" = Value::Fn(FnKind::Native(Rc::new(_char))));
-    set_global!(interpreter: "str" = Value::Fn(FnKind::Native(Rc::new(_str))));
-    set_global!(interpreter: "vec" = Value::Fn(FnKind::Native(Rc::new(_vec))));
-    set_global!(interpreter: "tuple" = Value::Fn(FnKind::Native(Rc::new(_tuple))));
-    set_global!(interpreter: "enumerate" = Value::Fn(FnKind::Native(Rc::new(_enumerate))));
+    set_global!(interpreter: "print" = native_fn!(_print));
+    set_global!(interpreter: "write" = native_fn!(_write));
+    set_global!(interpreter: "input" = native_fn!(_input));
+    set_global!(interpreter: "debug" = native_fn!(_debug));
+    set_global!(interpreter: "error" = native_fn!(_error));
+    set_global!(interpreter: "iter" = native_fn!(_iter));
+    set_global!(interpreter: "next" = native_fn!(_next));
+    set_global!(interpreter: "int" = native_fn!(_int));
+    set_global!(interpreter: "float" = native_fn!(_float));
+    set_global!(interpreter: "bool" = native_fn!(_bool));
+    set_global!(interpreter: "char" = native_fn!(_char));
+    set_global!(interpreter: "str" = native_fn!(_str));
+    set_global!(interpreter: "vec" = native_fn!(_vec));
+    set_global!(interpreter: "tuple" = native_fn!(_tuple));
+    set_global!(interpreter: "enumerate" = native_fn!(_enumerate));
 }
 
-native_fn!(_print (_i args): => {
+define_native_fn!(_print (_i args): => {
     println!("{}", args.map(|(_, v)| v.to_string()).collect::<Vec<String>>().join(" "));
     Ok(None)
 });
-native_fn!(_write (_i args): => {
+define_native_fn!(_write (_i args): => {
     print!("{}", args.map(|(_, v)| v.to_string()).collect::<Vec<String>>().join(" "));
     Ok(None)
 });
-native_fn!(_input (_i args): text = typed!(args: String) => {
+define_native_fn!(_input (_i args): text = typed!(args: String) => {
     let mut input = String::new();
     print!("{text}");
     std::io::stdout().flush()?;
     std::io::stdin().read_line(&mut input)?;
     Ok(Some(Value::String(input)))
 });
-native_fn!(_debug (_i args): => {
+define_native_fn!(_debug (_i args): => {
     let mut args = args.map(|(_, v)| {
         println!("{v:?}");
         v
@@ -159,7 +76,7 @@ impl NativeObject for ErrorObject {
         }
     }
 }
-native_fn!(_error (i args): msg = typed!(args: String) => {
+define_native_fn!(_error (i args): msg = typed!(args: String) => {
     Ok(Some(Value::NativeObject(Arc::new(Mutex::new(ErrorObject {
         msg,
         path: i.path().cloned(),
@@ -201,12 +118,12 @@ impl IteratorObject {
     pub fn next_(&mut self) -> Option<Value> {
         self.iter.next()
     }
-    native_fn!(_next (i args): _self = typed!(args: "iterator") => {
+    define_native_fn!(_next (i args): _self = typed!(args: "iterator") => {
         let mut _self = _self.lock().unwrap();
         _self.call_mut("next", i, args.map(|(_, v)| v).collect())
     });
 }
-native_fn!(_iter (i args): value = typed!(args) => {
+define_native_fn!(_iter (i args): value = typed!(args) => {
     match value {
         Value::Vector(values) => {
             Ok(Some(Value::NativeObject(Arc::new(Mutex::new(IteratorObject {
@@ -243,7 +160,7 @@ native_fn!(_iter (i args): value = typed!(args) => {
         value => Err(format!("can't iterate over {}", value.typ()).into())
     }
 });
-native_fn!(_next (i args): value = typed!(args) => {
+define_native_fn!(_next (i args): value = typed!(args) => {
     match value {
         Value::NativeObject(object) => {
             object.lock().unwrap().call_mut("next", i, args.map(|(_, v)| v).collect())
@@ -252,7 +169,7 @@ native_fn!(_next (i args): value = typed!(args) => {
     }
 });
 
-native_fn!(_int (_i args): value = typed!(args) => {
+define_native_fn!(_int (_i args): value = typed!(args) => {
     Ok(Some(Value::Int(match value {
         Value::Int(v) => v,
         Value::Float(v) => v as i64,
@@ -262,7 +179,7 @@ native_fn!(_int (_i args): value = typed!(args) => {
         _ => return Ok(None)
     })))
 });
-native_fn!(_float (_i args): value = typed!(args) => {
+define_native_fn!(_float (_i args): value = typed!(args) => {
     Ok(Some(Value::Float(match value {
         Value::Int(v) => v as f64,
         Value::Float(v) => v,
@@ -272,10 +189,10 @@ native_fn!(_float (_i args): value = typed!(args) => {
         _ => return Ok(None)
     })))
 });
-native_fn!(_bool (_i args): value = typed!(args) => {
+define_native_fn!(_bool (_i args): value = typed!(args) => {
     Ok(Some(Value::Bool(bool::from(value))))
 });
-native_fn!(_char (_i args): value = typed!(args) => {
+define_native_fn!(_char (_i args): value = typed!(args) => {
     Ok(Some(Value::Char(match value {
         Value::Int(v) => if let Ok(v) = TryInto::<u8>::try_into(v) { v as char } else { todo!() },
         Value::Float(v) => if let Ok(v) = TryInto::<u8>::try_into(v as i64) { v as char } else { todo!() },
@@ -283,48 +200,48 @@ native_fn!(_char (_i args): value = typed!(args) => {
         _ => return Ok(None)
     })))
 });
-native_fn!(_str (_i args): => {
+define_native_fn!(_str (_i args): => {
     Ok(Some(Value::String(args.map(|(_, v)| v.to_string()).collect::<Vec<String>>().join(""))))
 });
-native_fn!(_vec (_i args): value = typed!(args) => {
+define_native_fn!(_vec (_i args): value = typed!(args) => {
     if args.len() == 0 {
-        Ok(Some(Value::Vector(Arc::new(Mutex::new(match value {
+        Ok(Some(make_vec!(match value {
             Value::Vector(arc) => arc.lock().unwrap().clone(),
             Value::Tuple(arc) => arc.lock().unwrap().to_vec(),
             Value::Map(arc) => arc
                 .lock()
                 .unwrap()
                 .iter()
-                .map(|(k, v)| Value::Tuple(Arc::new(Mutex::new(Box::new([Value::String(k.clone()), v.clone()])))))
+                .map(|(k, v)| make_tuple!(Value::String(k.clone()), v.clone()))
                 .collect(),
             value => vec![value],
-        })))))
+        })))
     } else {
         let mut values: Vec<Value> = args.map(|(_, v)| v).collect();
         values.insert(0, value);
-        Ok(Some(Value::Vector(Arc::new(Mutex::new(values)))))
+        Ok(Some(make_vec!(values)))
     }
 });
-native_fn!(_tuple (_i args): value = typed!(args) => {
+define_native_fn!(_tuple (_i args): value = typed!(args) => {
     if args.len() == 0 {
-        Ok(Some(Value::Tuple(Arc::new(Mutex::new(match value {
+        Ok(Some(make_tuple!(match value {
             Value::Vector(arc) => arc.lock().unwrap().clone().into_boxed_slice(),
             Value::Tuple(arc) => arc.lock().unwrap().clone(),
             Value::Map(arc) => arc
                 .lock()
                 .unwrap()
                 .iter()
-                .map(|(k, v)| Value::Tuple(Arc::new(Mutex::new(Box::new([Value::String(k.clone()), v.clone()])))))
+                .map(|(k, v)| make_tuple!(Value::String(k.clone()), v.clone()))
                 .collect(),
             value => Box::new([value]),
-        })))))
+        })))
     } else {
         let mut values: Vec<Value> = args.map(|(_, v)| v).collect();
         values.insert(0, value);
-        Ok(Some(Value::Vector(Arc::new(Mutex::new(values)))))
+        Ok(Some(make_vec!(values)))
     }
 });
-native_fn!(_enumerate (i args): value = typed!(args) => {
+define_native_fn!(_enumerate (i args): value = typed!(args) => {
     match value {
         Value::Vector(values) => {
             Ok(Some(Value::NativeObject(Arc::new(Mutex::new(IteratorObject {
@@ -334,7 +251,7 @@ native_fn!(_enumerate (i args): value = typed!(args) => {
                     .clone()
                     .into_iter()
                     .enumerate()
-                    .map(|(i, v)| Value::Tuple(Arc::new(Mutex::new(Box::new([Value::Int(i as i64), v])))))
+                    .map(|(i, v)| make_tuple!(Value::Int(i as i64), v))
                 ),
                 fn_next: Rc::new(IteratorObject::_next)
             })))))
@@ -348,7 +265,7 @@ native_fn!(_enumerate (i args): value = typed!(args) => {
                     .to_vec()
                     .into_iter()
                     .enumerate()
-                    .map(|(i, v)| Value::Tuple(Arc::new(Mutex::new(Box::new([Value::Int(i as i64), v])))))
+                    .map(|(i, v)| make_tuple!(Value::Int(i as i64), v))
                 ),
                 fn_next: Rc::new(IteratorObject::_next)
             })))))
@@ -361,7 +278,7 @@ native_fn!(_enumerate (i args): value = typed!(args) => {
                     .clone()
                     .into_keys()
                     .enumerate()
-                    .map(|(i, v)| Value::Tuple(Arc::new(Mutex::new(Box::new([Value::Int(i as i64), Value::String(v)])))))
+                    .map(|(i, v)| make_tuple!(Value::Int(i as i64), Value::String(v)))
                 ),
                 fn_next: Rc::new(IteratorObject::_next)
             })))))
@@ -372,7 +289,7 @@ native_fn!(_enumerate (i args): value = typed!(args) => {
                     .into_bytes()
                     .into_iter()
                     .enumerate()
-                    .map(|(i, v)| Value::Tuple(Arc::new(Mutex::new(Box::new([Value::Int(i as i64), Value::Char(v as char)])))))
+                    .map(|(i, v)| make_tuple!(Value::Int(i as i64), Value::Char(v as char)))
                 ),
                 fn_next: Rc::new(IteratorObject::_next)
             })))))
