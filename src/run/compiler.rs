@@ -57,7 +57,7 @@ impl Compiler {
     pub fn new_constant(&mut self, value: Value) -> u16 {
         let frame = self.frame_mut().unwrap();
         if let Some(addr) = frame.closure.constants.iter().position(|v| v == &value) {
-            return addr as u16
+            return addr as u16;
         }
         let addr = frame.closure.constants.len() as u16;
         frame.closure.constants.push(value);
@@ -88,9 +88,44 @@ impl Compiler {
         let frame = self.frame_mut().unwrap();
         frame.closure.code[addr] = bytecode;
     }
-    pub fn overwrite_jump_if_some(&mut self, addr: usize, negative: bool, src: Source, to: usize, ln: usize) {
+    pub fn overwrite_jump_if(
+        &mut self,
+        addr: usize,
+        negative: bool,
+        cond: Source,
+        to: usize,
+        ln: usize,
+    ) {
         if to != addr + 1 {
-            self.overwrite(addr, ByteCode::JumpIfSome { negative, src, addr: to }, ln);
+            self.overwrite(
+                addr,
+                ByteCode::JumpIf {
+                    negative,
+                    cond,
+                    addr: to,
+                },
+                ln,
+            );
+        }
+    }
+    pub fn overwrite_jump_if_some(
+        &mut self,
+        addr: usize,
+        negative: bool,
+        src: Source,
+        to: usize,
+        ln: usize,
+    ) {
+        if to != addr + 1 {
+            self.overwrite(
+                addr,
+                ByteCode::JumpIfSome {
+                    negative,
+                    src,
+                    addr: to,
+                },
+                ln,
+            );
         }
     }
     pub fn overwrite_jump(&mut self, addr: usize, to: usize, ln: usize) {
@@ -513,15 +548,7 @@ impl Compilable for Located<Statement> {
                         else_case.compile(compiler);
                     }
                     let exit = compiler.addr();
-                    compiler.overwrite(
-                        jump_to_else,
-                        ByteCode::JumpIf {
-                            negative: true,
-                            cond,
-                            addr: _else,
-                        },
-                        ln,
-                    );
+                    compiler.overwrite_jump_if(jump_to_else, true, cond, _else, ln);
                     compiler.overwrite_jump(jump_to_exit, exit, ln);
                 }
                 compiler.frame_mut().unwrap().pop_scope();
@@ -600,13 +627,7 @@ impl Compilable for Located<Statement> {
                         else_case.compile(compiler);
                     }
                     let exit = compiler.addr();
-                    compiler.overwrite_jump_if_some(
-                        jump_to_else,
-                        true,
-                        src,
-                        _else,
-                        ln,
-                    );
+                    compiler.overwrite_jump_if_some(jump_to_else, true, src, _else, ln);
                     compiler.overwrite_jump(jump_to_exit, exit, ln);
                 }
                 compiler.frame_mut().unwrap().pop_scope();
@@ -619,15 +640,7 @@ impl Compilable for Located<Statement> {
                 body.compile(compiler);
                 compiler.alloc_continue(ln);
                 let exit = compiler.addr();
-                compiler.overwrite(
-                    jump_to_exit,
-                    ByteCode::JumpIf {
-                        negative: true,
-                        cond,
-                        addr: exit,
-                    },
-                    ln,
-                );
+                compiler.overwrite_jump_if(jump_to_exit, true, cond, exit, ln);
                 let scope = compiler.frame_mut().unwrap().pop_scope_loop().unwrap();
                 for addr in scope.breaks {
                     if exit != addr + 1 {
@@ -706,15 +719,7 @@ impl Compilable for Located<Statement> {
                 body.compile(compiler);
                 compiler.alloc_continue(ln);
                 let exit = compiler.addr();
-                compiler.overwrite(
-                    jump_to_exit,
-                    ByteCode::JumpIfSome {
-                        negative: true,
-                        src,
-                        addr: exit,
-                    },
-                    ln,
-                );
+                compiler.overwrite_jump_if_some(jump_to_exit, true, src, exit, ln);
                 let scope = compiler.frame_mut().unwrap().pop_scope_loop().unwrap();
                 for addr in scope.breaks {
                     compiler.overwrite_no_ln(addr, ByteCode::Jump { addr: exit });
@@ -824,15 +829,7 @@ impl Compilable for Located<Statement> {
                 body.compile(compiler);
                 compiler.alloc_continue(ln);
                 let exit = compiler.addr();
-                compiler.overwrite(
-                    jump_to_exit,
-                    ByteCode::JumpIfSome {
-                        negative: true,
-                        src,
-                        addr: exit,
-                    },
-                    ln,
-                );
+                compiler.overwrite_jump_if_some(jump_to_exit, true, src, exit, ln);
                 let scope = compiler.frame_mut().unwrap().pop_scope_loop().unwrap();
                 for addr in scope.breaks {
                     compiler.overwrite_no_ln(addr, ByteCode::Jump { addr: exit });
