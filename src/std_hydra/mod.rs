@@ -5,6 +5,7 @@ use crate::run::{
 use crate::*;
 use std::{
     error::Error,
+    fmt::Display,
     io::Write,
     rc::Rc,
     sync::{Arc, Mutex},
@@ -25,6 +26,8 @@ pub fn import(interpreter: &mut Interpreter) {
     set_global!(interpreter: "str" = native_fn!(_str));
     set_global!(interpreter: "vec" = native_fn!(_vec));
     set_global!(interpreter: "tuple" = native_fn!(_tuple));
+    set_global!(interpreter: "type" = native_fn!(_type));
+    set_global!(interpreter: "check" = native_fn!(_check));
     set_global!(interpreter: "enumerate" = native_fn!(_enumerate));
 }
 
@@ -58,6 +61,7 @@ define_native_fn!(_debug (_i args): => {
         args.into_boxed_slice()
     )))))
 });
+#[derive(Debug, Clone, PartialEq)]
 pub struct ErrorObject {
     msg: String,
     path: Option<String>,
@@ -76,12 +80,22 @@ impl NativeObject for ErrorObject {
         }
     }
 }
+impl Display for ErrorObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.msg
+        )
+    }
+}
+impl Error for ErrorObject {}
 define_native_fn!(_error (i args): msg = typed!(args: String) => {
-    Ok(Some(Value::NativeObject(Arc::new(Mutex::new(ErrorObject {
+    Err(ErrorObject {
         msg,
         path: i.path().cloned(),
         ln: i.ln().unwrap_or_default(),
-    })))))
+    }.into())
 });
 
 pub struct IteratorObject {
@@ -240,6 +254,27 @@ define_native_fn!(_tuple (_i args): value = typed!(args) => {
         values.insert(0, value);
         Ok(Some(make_vec!(values)))
     }
+});
+define_native_fn!(_type (_i args): value = typed!(args) => {
+    Ok(Some(Value::String(value.typ().to_string())))
+});
+define_native_fn!(_check (_i args): value = typed!(args) => {
+    for (idx, arg) in args {
+        if let Value::String(typ) = arg {
+            if value.typ() == typ {
+                return Ok(Some(value))
+            }
+        } else {
+            return Err(format!(
+                "expected {} for argument #{}, got {}",
+                Value::String(Default::default()).typ(),
+                idx + 1,
+                arg.typ()
+            )
+            .into());
+        }
+    }
+    Ok(Some(Value::default()))
 });
 define_native_fn!(_enumerate (i args): value = typed!(args) => {
     match value {
