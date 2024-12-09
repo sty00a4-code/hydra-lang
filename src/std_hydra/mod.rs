@@ -11,7 +11,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+pub mod std_math;
 pub mod std_fs;
+pub mod std_io;
+pub mod std_os;
+pub mod std_net;
 
 pub fn import(interpreter: &mut Interpreter) {
     set_global!(interpreter: "print" = native_fn!(_print));
@@ -31,7 +35,11 @@ pub fn import(interpreter: &mut Interpreter) {
     set_global!(interpreter: "type" = native_fn!(_type));
     set_global!(interpreter: "check" = native_fn!(_check));
     set_global!(interpreter: "enumerate" = native_fn!(_enumerate));
+    std_math::import(interpreter);
     std_fs::import(interpreter);
+    std_io::import(interpreter);
+    std_os::import(interpreter);
+    std_net::import(interpreter);
 }
 
 define_native_fn!(_print (_i args): => {
