@@ -11,6 +11,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+pub mod std_fs;
+
 pub fn import(interpreter: &mut Interpreter) {
     set_global!(interpreter: "print" = native_fn!(_print));
     set_global!(interpreter: "write" = native_fn!(_write));
@@ -29,6 +31,7 @@ pub fn import(interpreter: &mut Interpreter) {
     set_global!(interpreter: "type" = native_fn!(_type));
     set_global!(interpreter: "check" = native_fn!(_check));
     set_global!(interpreter: "enumerate" = native_fn!(_enumerate));
+    std_fs::import(interpreter);
 }
 
 define_native_fn!(_print (_i args): => {
@@ -67,9 +70,12 @@ pub struct ErrorObject {
     path: Option<String>,
     ln: usize,
 }
+impl ErrorObject {
+    pub const TYPE: &'static str = "error";
+}
 impl NativeObject for ErrorObject {
     fn typ(&self) -> &'static str {
-        "error"
+        Self::TYPE
     }
     fn get(&self, key: &str) -> Option<Value> {
         match key {
@@ -106,7 +112,7 @@ unsafe impl Send for IteratorObject {}
 unsafe impl Sync for IteratorObject {}
 impl NativeObject for IteratorObject {
     fn typ(&self) -> &'static str {
-        "iterator"
+        Self::TYPE
     }
     fn get(&self, key: &str) -> Option<Value> {
         match key {
@@ -129,10 +135,11 @@ impl NativeObject for IteratorObject {
     }
 }
 impl IteratorObject {
+    pub const TYPE: &'static str = "iterator";
     pub fn next_(&mut self) -> Option<Value> {
         self.iter.next()
     }
-    define_native_fn!(_next (i args): _self = typed!(args: "iterator") => {
+    define_native_fn!(_next (i args): _self = typed!(args: Self::TYPE) => {
         let mut _self = _self.lock().unwrap();
         _self.call_mut("next", i, args.map(|(_, v)| v).collect())
     });

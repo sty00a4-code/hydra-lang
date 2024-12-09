@@ -79,11 +79,12 @@ pub fn run(
 
 #[macro_export]
 macro_rules! set_global {
-    ($interpreter:ident: $key:literal = $value:expr) => {
+    ($interpreter:ident: $key:literal = $value:expr) => {{
+        use std::sync::{Arc, Mutex};
         $interpreter
             .globals
             .insert($key.into(), Arc::new(Mutex::new($value)))
-    };
+    }};
 }
 #[macro_export]
 macro_rules! typed {
@@ -143,6 +144,38 @@ macro_rules! typed {
             .into());
         }
     }};
+    ($args:ident: $typ:expr) => {{
+        let Some((idx, arg)) = $args.next() else {
+            return Err(format!(
+                "expected {} for argument #last, got {}",
+                $typ,
+                Value::default().typ()
+            )
+            .into());
+        };
+        let Value::NativeObject(arc) = arg else {
+            return Err(format!(
+                "expected {} for argument #{}, got {}",
+                $typ,
+                idx + 1,
+                arg.typ()
+            )
+            .into());
+        };
+        {
+            let object = arc.lock().unwrap();
+            if object.typ() != $typ {
+                return Err(format!(
+                    "expected {} for argument #{}, got {}",
+                    $typ,
+                    idx + 1,
+                    object.typ()
+                )
+                .into());
+            }
+        }
+        Arc::clone(&arc)
+    }};
 }
 #[macro_export]
 macro_rules! define_native_fn {
@@ -165,9 +198,10 @@ macro_rules! define_native_fn {
 }
 #[macro_export]
 macro_rules! native_fn {
-    ($name:ident) => {
+    ($name:ident) => {{
+        use run::value::FnKind;
         Value::Fn(FnKind::Native(Rc::new($name)))
-    };
+    }};
 }
 #[macro_export]
 macro_rules! make_vec {

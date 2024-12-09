@@ -776,6 +776,36 @@ impl From<i64> for Value {
         Self::Int(value)
     }
 }
+impl From<isize> for Value {
+    fn from(value: isize) -> Self {
+        Self::Int(value as i64)
+    }
+}
+impl From<u8> for Value {
+    fn from(value: u8) -> Self {
+        Self::Int(value.into())
+    }
+}
+impl From<u16> for Value {
+    fn from(value: u16) -> Self {
+        Self::Int(value.into())
+    }
+}
+impl From<u32> for Value {
+    fn from(value: u32) -> Self {
+        Self::Int(value.into())
+    }
+}
+impl From<u64> for Value {
+    fn from(value: u64) -> Self {
+        Self::Int(value as i64)
+    }
+}
+impl From<usize> for Value {
+    fn from(value: usize) -> Self {
+        Self::Int(value as i64)
+    }
+}
 impl From<f32> for Value {
     fn from(value: f32) -> Self {
         Self::Float(value.into())
