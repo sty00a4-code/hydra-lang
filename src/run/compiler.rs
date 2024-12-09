@@ -1018,6 +1018,7 @@ impl Compilable for Located<Atom> {
                 let registers = compiler.frame().unwrap().registers;
                 let start = registers;
                 for expr in exprs {
+                    let ln = expr.pos.ln.start;
                     let dst = compiler.frame_mut().unwrap().new_register();
                     let src = expr.compile(compiler);
                     compiler.move_checked(Location::Register(dst), src, ln);
@@ -1039,6 +1040,7 @@ impl Compilable for Located<Atom> {
                 let registers = compiler.frame().unwrap().registers;
                 let start = registers;
                 for expr in exprs {
+                    let ln = expr.pos.ln.start;
                     let dst = compiler.frame_mut().unwrap().new_register();
                     let src = expr.compile(compiler);
                     compiler.move_checked(Location::Register(dst), src, ln);
@@ -1066,12 +1068,12 @@ impl Compilable for Located<Atom> {
                 for (
                     Located {
                         value: field,
-                        pos: _,
+                        pos,
                     },
                     expr,
                 ) in pairs
                 {
-                    let ln = expr.pos.ln.start;
+                    let ln = pos.ln.start;
                     let src = expr.compile(compiler);
                     let field = Source::Constant(compiler.new_constant(Value::String(field)));
                     compiler.write(
