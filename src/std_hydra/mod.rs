@@ -16,6 +16,7 @@ pub mod std_fs;
 pub mod std_io;
 pub mod std_os;
 pub mod std_net;
+pub mod std_env;
 
 pub fn import(interpreter: &mut Interpreter) {
     set_global!(interpreter: "print" = native_fn!(_print));
@@ -40,6 +41,7 @@ pub fn import(interpreter: &mut Interpreter) {
     std_io::import(interpreter);
     std_os::import(interpreter);
     std_net::import(interpreter);
+    std_env::import(interpreter);
 }
 
 define_native_fn!(_print (_i args): => {
