@@ -225,7 +225,7 @@ impl Display for Closure {
         writeln!(f, "  parameters: {}", self.parameters)?;
         writeln!(f, "  varargs: {}", self.varargs)?;
         writeln!(f, "  code:")?;
-        let width = 28;
+        let width = 30;
         for ((addr, bytecode), line) in self.code.iter().enumerate().zip(self.lines.iter()) {
             let s = bytecode.to_string();
             writeln!(

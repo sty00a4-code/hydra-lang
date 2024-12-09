@@ -497,14 +497,16 @@ impl Compilable for Located<Statement> {
                     );
                     Source::Register(dst)
                 };
-                {
+                let start = compiler.frame().unwrap().registers;
+                let amount = args.len() as u8 + 1;
+                let head_reg = {
                     let dst = compiler.frame_mut().unwrap().new_register();
                     compiler.move_checked(Location::Register(dst), head, head_ln);
-                }
+                    dst
+                };
                 compiler.frame_mut().unwrap().push_scope();
-                let start = compiler.frame().unwrap().registers;
-                let amount = args.len() as u8;
                 {
+                    compiler.move_checked(Location::Register(start), Source::Register(head_reg), ln);
                     let registers = compiler.frame_mut().unwrap().alloc_registers(amount);
                     for (arg, reg) in args.into_iter().zip(registers) {
                         let ln = arg.pos.ln.start;
@@ -905,14 +907,16 @@ impl Compilable for Located<Expression> {
                     );
                     Source::Register(dst)
                 };
-                {
+                let start = compiler.frame().unwrap().registers;
+                let amount = args.len() as u8 + 1;
+                let head_reg = {
                     let dst = compiler.frame_mut().unwrap().new_register();
                     compiler.move_checked(Location::Register(dst), head, head_ln);
-                }
+                    dst
+                };
                 compiler.frame_mut().unwrap().push_scope();
-                let start = compiler.frame().unwrap().registers;
-                let amount = args.len() as u8;
                 {
+                    compiler.move_checked(Location::Register(start), Source::Register(head_reg), ln);
                     let registers = compiler.frame_mut().unwrap().alloc_registers(amount);
                     for (arg, reg) in args.into_iter().zip(registers) {
                         let ln = arg.pos.ln.start;
