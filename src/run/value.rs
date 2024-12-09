@@ -67,6 +67,9 @@ pub trait NativeObject {
             .to_string()
             .into())
     }
+    fn __str(&self) -> Option<Rc<NativeFn>> {
+        None
+    }
 }
 
 unsafe impl Send for Function {}
@@ -910,7 +913,10 @@ impl<T: Into<Value>> From<HashMap<String, T>> for Value {
 impl<T: Into<Value>> From<HashMap<&str, T>> for Value {
     fn from(value: HashMap<&str, T>) -> Self {
         Self::Map(Arc::new(Mutex::new(
-            value.into_iter().map(|(k, v)| (k.to_string(), v.into())).collect(),
+            value
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.into()))
+                .collect(),
         )))
     }
 }
@@ -924,7 +930,10 @@ impl<T: Into<Value>> From<Vec<(String, T)>> for Value {
 impl<T: Into<Value>> From<Vec<(&str, T)>> for Value {
     fn from(value: Vec<(&str, T)>) -> Self {
         Self::Map(Arc::new(Mutex::new(
-            value.into_iter().map(|(k, v)| (k.to_string(), v.into())).collect(),
+            value
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.into()))
+                .collect(),
         )))
     }
 }
