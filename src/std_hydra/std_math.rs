@@ -1,7 +1,7 @@
-use core::f64;
-
-use crate::*;
 use crate::run::interpreter::Interpreter;
+use crate::*;
+use core::f64;
+use rand::random;
 
 pub fn import(interpreter: &mut Interpreter) {
     set_global!(interpreter: "math" = make_map!{
@@ -46,6 +46,9 @@ pub fn import(interpreter: &mut Interpreter) {
         "log2" = native_fn!(_log2),
         "radians" = native_fn!(_radians),
         "degrees" = native_fn!(_degrees),
+        "random" = native_fn!(_random),
+        "random_int" = native_fn!(_random_int),
+        "random_choice" = native_fn!(_random_choice),
     });
 }
 pub fn make_float(idx: usize, value: Value) -> Result<f64, Box<dyn Error>> {
@@ -54,10 +57,15 @@ pub fn make_float(idx: usize, value: Value) -> Result<f64, Box<dyn Error>> {
         Value::Float(value) => Ok(value),
         value => Err(format!(
             "expected {} for argument #{}, got {}",
-            [Value::Int(Default::default()).typ(), Value::Float(Default::default()).typ()].join("/"),
+            [
+                Value::Int(Default::default()).typ(),
+                Value::Float(Default::default()).typ()
+            ]
+            .join("/"),
             idx + 1,
             value.typ(),
-        ).into())
+        )
+        .into()),
     }
 }
 define_native_fn!(_floor (_i args): value = typed!(args: Float) => {
@@ -226,4 +234,42 @@ define_native_fn!(_radians (_i args): value = typed!(args) => {
 define_native_fn!(_degrees (_i args): value = typed!(args) => {
     let value = make_float(0, value)?;
     Ok(Some(value.to_degrees().into()))
+});
+define_native_fn!(_random (_i args): => {
+    Ok(Some(random::<f64>().into()))
+});
+define_native_fn!(_random_int (_i args): min = typed!(args: Int), max = typed!(args: Int?)  => {
+    if let Some(max) = max {
+        Ok(Some(((random::<f64>() * (max - min) as f64) as i64 + min).into()))
+    } else {
+        Ok(Some(((random::<f64>() * min as f64) as i64).into()))
+    }
+});
+define_native_fn!(_random_choice (_i args): collection = typed!(args)  => {
+    match collection {
+        Value::Vector(values) => {
+            let len = values.lock().unwrap().len();
+            let index = (random::<f64>() * len as f64) as usize;
+            Ok(values.lock().unwrap().get(index).cloned())
+        }
+        Value::Tuple(values) => {
+            let len = values.lock().unwrap().len();
+            let index = (random::<f64>() * len as f64) as usize;
+            Ok(values.lock().unwrap().get(index).cloned())
+        }
+        Value::Map(values) => {
+            let len = values.lock().unwrap().len();
+            let index = (random::<f64>() * len as f64) as usize;
+            Ok(Some(values.lock().unwrap().keys().cloned().collect::<Vec<String>>().remove(index).into()))
+        }
+        collection => Err(format!(
+            "expected {} for argument #1, got {}",
+            [
+                Value::Vector(Default::default()).typ(),
+                Value::Tuple(Default::default()).typ(),
+                Value::Map(Default::default()).typ(),
+            ].join("/"),
+            collection.typ()
+        ).into())
+    }
 });

@@ -91,6 +91,51 @@ macro_rules! typed {
     ($args:ident) => {{
         $args.next().map(|(_, v)| v).unwrap_or_default()
     }};
+    ($args:ident: $typ:literal ?) => {{
+        let (idx, arg) = $args.next().unwrap_or(($args.len(), Value::default()));
+        if arg == Value::default() {
+            None
+        } else {
+            let Value::NativeObject(arc) = arg else {
+                return Err(format!(
+                    "expected {} for argument #{}, got {}",
+                    $typ,
+                    idx + 1,
+                    arg.typ()
+                )
+                .into());
+            };
+            {
+                let object = arc.lock().unwrap();
+                if object.typ() != $typ {
+                    return Err(format!(
+                        "expected {} for argument #{}, got {}",
+                        $typ,
+                        idx + 1,
+                        object.typ()
+                    )
+                    .into());
+                }
+            }
+            Arc::clone(&arc)
+        }
+    }};
+    ($args:ident: $typ:ident ?) => {{
+        let (idx, arg) = $args.next().unwrap_or(($args.len(), Value::default()));
+        if arg == Value::default() {
+            None
+        } else if let Value::$typ(value) = arg {
+            Some(value)
+        } else {
+            return Err(format!(
+                "expected {} for argument #{}, got {}",
+                Value::$typ(Default::default()).typ(),
+                idx + 1,
+                arg.typ()
+            )
+            .into());
+        }
+    }};
     ($args:ident: $typ:literal) => {{
         let Some((idx, arg)) = $args.next() else {
             return Err(format!(
