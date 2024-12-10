@@ -17,7 +17,7 @@ pub const CHAR_MODULE: &str = "__char";
 pub const STRING_MODULE: &str = "__string";
 pub const VECTOR_MODULE: &str = "__vector";
 pub const TUPLE_MODULE: &str = "__tuple";
-pub const MAP_MODULE: &str = "__map";
+pub const MAP_MODULE: &str = "map";
 
 #[derive(Debug, Default)]
 pub struct Interpreter {

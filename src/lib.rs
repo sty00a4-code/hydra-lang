@@ -235,7 +235,7 @@ macro_rules! define_native_fn {
             $body
         }
     };
-    ($fn_name:ident ($interpreter:ident $args:ident): $($name:ident = $macro:expr),* $(,) * => $body:block) => {
+    ($fn_name:ident ($interpreter:ident $args:ident): $($name:pat = $macro:expr),* $(,) * => $body:block) => {
         pub fn $fn_name($interpreter: &mut Interpreter, $args: Vec<Value>) -> Result<Option<Value>, Box<dyn Error>> {
             #[allow(unused_mut)]
             #[allow(unused_variables)]
@@ -251,30 +251,36 @@ macro_rules! define_native_fn {
 macro_rules! native_fn {
     ($name:ident) => {{
         use run::value::FnKind;
+        use std::rc::Rc;
         Value::Fn(FnKind::Native(Rc::new($name)))
     }};
 }
 #[macro_export]
 macro_rules! make_vec {
-    ($value:expr) => {
+    ($value:expr) => {{
+        use std::sync::{Arc, Mutex};
         Value::Vector(Arc::new(Mutex::new($value)))
-    };
-    ($($value:expr),* $(,) *) => {
+    }};
+    ($($value:expr),* $(,) *) => {{
+        use std::sync::{Arc, Mutex};
         Value::Vector(Arc::new(Mutex::new(vec![$($value),*])))
-    };
+    }};
 }
 #[macro_export]
 macro_rules! make_tuple {
-    ($value:expr) => {
+    ($value:expr) => {{
+        use std::sync::{Arc, Mutex};
         Value::Tuple(Arc::new(Mutex::new($value.into())))
-    };
-    ($($value:expr),* $(,) *) => {
-        Value::Tuple(Arc::new(Mutex::new(Box::new([$($value),*]))))
-    };
+    }};
+    ($($value:expr),* $(,) *) => {{
+        use std::sync::{Arc, Mutex};
+        Value::Tuple(Arc::new(Mutex::new(Box::new([$($value.into()),*]))))
+    }};
 }
 #[macro_export]
 macro_rules! make_map {
     ($($key:literal = $value:expr),* $(,) *) => {{
+        use std::sync::{Arc, Mutex};
         use std::collections::HashMap;
         #[allow(unused_mut)]
         let mut map = HashMap::new();
@@ -283,7 +289,8 @@ macro_rules! make_map {
         ) *
         Value::Map(Arc::new(Mutex::new(map)))
     }};
-    ($value:expr) => {
+    ($value:expr) => {{
+        use std::sync::{Arc, Mutex};
         Value::Map(Arc::new(Mutex::new($value.into())))
-    };
+    }};
 }
