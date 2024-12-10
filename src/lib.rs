@@ -85,6 +85,12 @@ macro_rules! set_global {
             .globals
             .insert($key.into(), Arc::new(Mutex::new($value)))
     }};
+    ($interpreter:ident: $key:ident = $value:expr) => {{
+        use std::sync::{Arc, Mutex};
+        $interpreter
+            .globals
+            .insert($key.into(), Arc::new(Mutex::new($value)))
+    }};
 }
 #[macro_export]
 macro_rules! typed {

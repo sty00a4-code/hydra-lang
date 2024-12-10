@@ -10,6 +10,15 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+pub const INT_MODULE: &str = "__int";
+pub const FLOAT_MODULE: &str = "__float";
+pub const BOOL_MODULE: &str = "__bool";
+pub const CHAR_MODULE: &str = "__char";
+pub const STRING_MODULE: &str = "__string";
+pub const VECTOR_MODULE: &str = "__vector";
+pub const TUPLE_MODULE: &str = "__tuple";
+pub const MAP_MODULE: &str = "__map";
+
 #[derive(Debug, Default)]
 pub struct Interpreter {
     pub call_stack: Vec<CallFrame>,

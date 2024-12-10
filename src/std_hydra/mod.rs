@@ -17,6 +17,14 @@ pub mod std_io;
 pub mod std_os;
 pub mod std_net;
 pub mod std_env;
+pub mod std_int;
+pub mod std_float;
+pub mod std_bool;
+pub mod std_char;
+pub mod std_string;
+pub mod std_vector;
+pub mod std_tuple;
+pub mod std_map;
 
 pub fn import(interpreter: &mut Interpreter) {
     set_global!(interpreter: "print" = native_fn!(_print));
@@ -42,6 +50,14 @@ pub fn import(interpreter: &mut Interpreter) {
     std_os::import(interpreter);
     std_net::import(interpreter);
     std_env::import(interpreter);
+    std_int::import(interpreter);
+    std_float::import(interpreter);
+    std_bool::import(interpreter);
+    std_char::import(interpreter);
+    std_string::import(interpreter);
+    std_vector::import(interpreter);
+    std_tuple::import(interpreter);
+    std_map::import(interpreter);
 }
 
 define_native_fn!(_print (_i args): => {
