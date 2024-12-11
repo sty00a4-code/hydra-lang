@@ -1,3 +1,4 @@
+#![feature(integer_sign_cast)]
 use run::{
     compiler::{Compilable, Compiler, Frame, Scope},
     interpreter::Interpreter,

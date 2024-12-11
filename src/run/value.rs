@@ -3,9 +3,11 @@ use super::{
     interpreter::{Interpreter, RunTimeError, RunTimeErrorKind},
 };
 use std::{
+    cmp::Ordering,
     collections::HashMap,
     error::Error,
     fmt::{Debug, Display},
+    hash::Hash,
     rc::Rc,
     sync::{Arc, Mutex},
 };
@@ -623,6 +625,44 @@ impl PartialEq for Value {
         }
     }
 }
+impl Eq for Value {}
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for Value {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (Self::Null, Self::Null) => Ordering::Equal,
+            (Self::Int(left), Self::Int(right)) => left.cmp(right),
+            (Self::Float(left), Self::Float(right)) => {
+                left.partial_cmp(right).unwrap_or(Ordering::Equal)
+            }
+            (Self::Int(left), Self::Float(right)) => {
+                (*left as f64).partial_cmp(right).unwrap_or(Ordering::Equal)
+            }
+            (Self::Float(left), Self::Int(right)) => left
+                .partial_cmp(&(*right as f64))
+                .unwrap_or(Ordering::Equal),
+            (Self::Bool(left), Self::Bool(right)) => left.cmp(right),
+            (Self::Char(left), Self::Char(right)) => left.cmp(right),
+            (Self::String(left), Self::String(right)) => left.cmp(right),
+            (Self::Vector(left), Self::Vector(right)) => Arc::as_ptr(left).cmp(&Arc::as_ptr(right)),
+            (Self::Tuple(left), Self::Tuple(right)) => Arc::as_ptr(left).cmp(&Arc::as_ptr(right)),
+            (Self::Fn(FnKind::Function(left)), Self::Fn(FnKind::Function(right))) => {
+                Arc::as_ptr(left).cmp(&Arc::as_ptr(right))
+            }
+            (Self::Fn(FnKind::Native(left)), Self::Fn(FnKind::Native(right))) => Rc::as_ptr(left)
+                .cast::<()>()
+                .cmp(&Rc::as_ptr(right).cast::<()>()),
+            (Self::NativeObject(left), Self::NativeObject(right)) => Arc::as_ptr(left)
+                .cast::<()>()
+                .cmp(&Arc::as_ptr(right).cast::<()>()),
+            _ => Ordering::Equal,
+        }
+    }
+}
 impl Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -925,5 +965,59 @@ impl<T: Into<Value>> From<HashMap<&str, T>> for Value {
                 .map(|(k, v)| (k.to_string(), v.into()))
                 .collect(),
         )))
+    }
+}
+
+impl Hash for Value {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Value::Null => {
+                state.write_u8(0);
+            }
+            Value::Int(v) => {
+                state.write_u8(1);
+                state.write_u64(v.cast_unsigned());
+            }
+            Value::Float(v) => {
+                state.write_u8(2);
+                state.write_u64(v.to_bits());
+            }
+            Value::Bool(v) => {
+                state.write_u8(3);
+                state.write_u8(*v as u8);
+            }
+            Value::Char(v) => {
+                state.write_u8(4);
+                state.write_u8(*v as u8);
+            }
+            Value::String(v) => {
+                state.write_u8(5);
+                state.write_u8(v.as_ptr() as u8);
+            }
+            Value::Vector(arc) => {
+                state.write_u8(6);
+                state.write_u8(Arc::as_ptr(arc) as u8);
+            }
+            Value::Tuple(arc) => {
+                state.write_u8(7);
+                state.write_u8(Arc::as_ptr(arc) as u8);
+            }
+            Value::Map(arc) => {
+                state.write_u8(8);
+                state.write_u8(Arc::as_ptr(arc) as u8);
+            }
+            Value::Fn(FnKind::Function(arc)) => {
+                state.write_u8(8);
+                state.write_u8(Arc::as_ptr(arc) as u8);
+            }
+            Value::Fn(FnKind::Native(rc)) => {
+                state.write_u8(8);
+                state.write_u8(Rc::as_ptr(rc) as *const () as u8);
+            }
+            Value::NativeObject(arc) => {
+                state.write_u8(8);
+                state.write_u8(Arc::as_ptr(arc) as *const () as u8);
+            }
+        }
     }
 }
