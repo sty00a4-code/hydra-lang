@@ -286,13 +286,13 @@ impl Interpreter {
                 let dst = self.location(dst).unwrap();
                 let head = self.source(head).unwrap_or_default();
                 let field = self.source(field).unwrap_or_default();
-                *dst.lock().unwrap() = head.field(field, ln)?;
+                *dst.lock().unwrap() = head.field(self, field, ln)?;
             }
             ByteCode::SetField { head, field, src } => {
                 let head = self.source(head).unwrap_or_default();
                 let field = self.source(field).unwrap_or_default();
                 let src = self.source(src).unwrap_or_default();
-                head.set_field(field, src, ln)?;
+                head.set_field(self, field, src, ln)?;
             }
             ByteCode::Vector { dst, start, amount } => {
                 let dst = self.location(dst).unwrap();

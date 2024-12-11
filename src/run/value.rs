@@ -1,6 +1,6 @@
 use super::{
     code::{BinaryOperation, Closure, UnaryOperation},
-    interpreter::{Interpreter, RunTimeError, RunTimeErrorKind},
+    interpreter::{Interpreter, RunTimeError, RunTimeErrorKind, STRING_MODULE, TUPLE_MODULE, VECTOR_MODULE},
 };
 use std::{
     cmp::Ordering,
@@ -92,7 +92,12 @@ impl Value {
             Value::NativeObject(arc) => arc.lock().unwrap().typ(),
         }
     }
-    pub fn field(self, field: Value, ln: usize) -> Result<Value, RunTimeError> {
+    pub fn field(
+        self,
+        interpreter: &mut Interpreter,
+        field: Value,
+        ln: usize,
+    ) -> Result<Value, RunTimeError> {
         Ok(match self {
             Value::String(string) => match field {
                 Value::Int(value) => if value <= -1 {
@@ -109,6 +114,14 @@ impl Value {
                 .and_then(|s| s.chars().next())
                 .map(Value::Char)
                 .unwrap_or_default(),
+                Value::String(key) => {
+                    if let Some(module) = interpreter.globals.get(STRING_MODULE).cloned() {
+                        let module = module.lock().unwrap().clone();
+                        module.field(interpreter, key.into(), ln)?
+                    } else {
+                        Value::default()
+                    }
+                }
                 field => {
                     return Err(RunTimeError {
                         err: RunTimeErrorKind::InvalidField {
@@ -134,6 +147,14 @@ impl Value {
                     .cloned()
                     .unwrap_or_default()
                 }
+                Value::String(key) => {
+                    if let Some(module) = interpreter.globals.get(VECTOR_MODULE).cloned() {
+                        let module = module.lock().unwrap().clone();
+                        module.field(interpreter, key.into(), ln)?
+                    } else {
+                        Value::default()
+                    }
+                }
                 field => {
                     return Err(RunTimeError {
                         err: RunTimeErrorKind::InvalidField {
@@ -158,6 +179,14 @@ impl Value {
                     }
                     .cloned()
                     .unwrap_or_default()
+                }
+                Value::String(key) => {
+                    if let Some(module) = interpreter.globals.get(TUPLE_MODULE).cloned() {
+                        let module = module.lock().unwrap().clone();
+                        module.field(interpreter, key.into(), ln)?
+                    } else {
+                        Value::default()
+                    }
                 }
                 field => {
                     return Err(RunTimeError {
@@ -207,7 +236,13 @@ impl Value {
             }
         })
     }
-    pub fn set_field(self, field: Value, src: Value, ln: usize) -> Result<(), RunTimeError> {
+    pub fn set_field(
+        self,
+        interpreter: &mut Interpreter,
+        field: Value,
+        src: Value,
+        ln: usize,
+    ) -> Result<(), RunTimeError> {
         match self {
             Value::Vector(arc) => match field {
                 Value::Int(value) => {

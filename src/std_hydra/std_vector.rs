@@ -11,6 +11,7 @@ pub fn import(interpreter: &mut Interpreter) {
         "clear" = native_fn!(_clear),
         "copy" = native_fn!(_copy),
         "swap" = native_fn!(_swap),
+        "sort" = native_fn!(_sort),
     });
 }
 define_native_fn!(_len (_i args): value = typed!(args: Vector) => {
@@ -100,4 +101,9 @@ define_native_fn!(_swap (_i args): value = typed!(args: Vector), index1 = typed!
     };
     value.swap(index1, index2);
     Ok(None)
+});
+define_native_fn!(_sort (_i args): value = typed!(args: Vector) => {
+    let mut value = value.lock().unwrap();
+    value.sort();
+    Ok(Some(value.clone().into()))
 });
