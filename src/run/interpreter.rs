@@ -292,7 +292,7 @@ impl Interpreter {
                 let head = self.source(head).unwrap_or_default();
                 let field = self.source(field).unwrap_or_default();
                 let src = self.source(src).unwrap_or_default();
-                head.set_field(self, field, src, ln)?;
+                head.set_field(field, src, ln)?;
             }
             ByteCode::Vector { dst, start, amount } => {
                 let dst = self.location(dst).unwrap();

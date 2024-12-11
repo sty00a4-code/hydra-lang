@@ -1,6 +1,8 @@
 use super::{
     code::{BinaryOperation, Closure, UnaryOperation},
-    interpreter::{Interpreter, RunTimeError, RunTimeErrorKind, STRING_MODULE, TUPLE_MODULE, VECTOR_MODULE},
+    interpreter::{
+        Interpreter, RunTimeError, RunTimeErrorKind, STRING_MODULE, TUPLE_MODULE, VECTOR_MODULE,
+    },
 };
 use std::{
     cmp::Ordering,
@@ -238,7 +240,6 @@ impl Value {
     }
     pub fn set_field(
         self,
-        interpreter: &mut Interpreter,
         field: Value,
         src: Value,
         ln: usize,
