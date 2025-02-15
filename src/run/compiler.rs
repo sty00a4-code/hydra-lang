@@ -506,7 +506,11 @@ impl Compilable for Located<Statement> {
                 };
                 compiler.frame_mut().unwrap().push_scope();
                 {
-                    compiler.move_checked(Location::Register(start), Source::Register(head_reg), ln);
+                    compiler.move_checked(
+                        Location::Register(start),
+                        Source::Register(head_reg),
+                        ln,
+                    );
                     let registers = compiler.frame_mut().unwrap().alloc_registers(amount);
                     for (arg, reg) in args.into_iter().zip(registers) {
                         let ln = arg.pos.ln.start;
@@ -916,7 +920,11 @@ impl Compilable for Located<Expression> {
                 };
                 compiler.frame_mut().unwrap().push_scope();
                 {
-                    compiler.move_checked(Location::Register(start), Source::Register(head_reg), ln);
+                    compiler.move_checked(
+                        Location::Register(start),
+                        Source::Register(head_reg),
+                        ln,
+                    );
                     let registers = compiler.frame_mut().unwrap().alloc_registers(amount);
                     for (arg, reg) in args.into_iter().zip(registers) {
                         let ln = arg.pos.ln.start;
@@ -1069,14 +1077,7 @@ impl Compilable for Located<Atom> {
                     ln,
                 );
                 let registers = compiler.frame().unwrap().registers;
-                for (
-                    Located {
-                        value: field,
-                        pos,
-                    },
-                    expr,
-                ) in pairs
-                {
+                for (Located { value: field, pos }, expr) in pairs {
                     let ln = pos.ln.start;
                     let src = expr.compile(compiler);
                     let field = Source::Constant(compiler.new_constant(Value::String(field)));
