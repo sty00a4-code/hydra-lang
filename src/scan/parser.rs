@@ -1003,6 +1003,43 @@ impl Parsable for Atom {
                     Ok(Located::new(Self::Map(exprs), pos))
                 }
             }
+            Token::Fn => {
+                parser.expect(Token::ParanLeft)?;
+                let mut params = vec![];
+                let mut varargs = None;
+                while let Some(Indexed { value: token, .. }) = parser.peek() {
+                    if token == &Token::ParanRight {
+                        break;
+                    }
+                    if token == &Token::DotDotDot {
+                        parser.expect_any()?;
+                        varargs = Some(Parameter::parse_ident(parser)?);
+                        break;
+                    }
+                    let param = Parameter::parse(parser)?;
+                    params.push(param);
+                    if let Some(Indexed {
+                        value: Token::ParanRight,
+                        index: _,
+                    }) = parser.peek()
+                    {
+                        break;
+                    }
+                    parser.expect(Token::Comma)?;
+                }
+                parser.expect(Token::ParanRight)?;
+                parser.expect(Token::EqualArrow)?;
+                let body = Expression::parse(parser)?;
+                pos.extend(&body.pos);
+                Ok(Located::new(
+                    Self::Fn {
+                        params,
+                        varargs,
+                        body: Box::new(body),
+                    },
+                    pos,
+                ))
+            }
             token => Err(Located::new(ParseError::UnexpectedToken(token), pos)),
         }
     }

@@ -175,6 +175,25 @@ macro_rules! typed {
         }
         Arc::clone(&arc)
     }};
+    ($args:ident: Fn) => {{
+        let Some((idx, arg)) = $args.next() else {
+            return Err(format!(
+                "expected fn for argument #last, got {}",
+                Value::default().typ()
+            )
+            .into());
+        };
+        if let Value::Fn(value) = arg {
+            value
+        } else {
+            return Err(format!(
+                "expected fn for argument #{}, got {}",
+                idx + 1,
+                arg.typ()
+            )
+            .into());
+        }
+    }};
     ($args:ident: $typ:ident) => {{
         let Some((idx, arg)) = $args.next() else {
             return Err(format!(

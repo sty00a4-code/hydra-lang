@@ -1094,6 +1094,93 @@ impl Compilable for Located<Atom> {
                 Source::Register(dst)
             }
             Atom::Expression(expr) => expr.compile(compiler),
+            Atom::Fn {
+                params,
+                varargs,
+                body,
+            } => {
+                let dst = Location::Register(compiler.frame_mut().unwrap().new_register());
+                compiler.push_frame(compiler.path.clone(), None);
+                {
+                    compiler
+                        .frame_mut()
+                        .unwrap()
+                        .alloc_registers(params.len() as u8);
+                    if let Some(Located {
+                        value: ident,
+                        pos: _,
+                    }) = varargs
+                    {
+                        compiler.frame_mut().unwrap().new_local(ident);
+                        compiler.frame_mut().unwrap().closure.varargs = true;
+                    }
+                    for (
+                        reg,
+                        Located {
+                            value: param,
+                            pos: param_pos,
+                        },
+                    ) in params.into_iter().enumerate()
+                    {
+                        let param_ln = param_pos.ln.start;
+                        match param {
+                            Parameter::Ident(ident) => {
+                                compiler.frame_mut().unwrap().closure.parameters += 1;
+                                compiler.frame_mut().unwrap().set_local(ident, reg as u8);
+                            }
+                            Parameter::Tuple(params) | Parameter::Vector(params) => {
+                                for (
+                                    idx,
+                                    Located {
+                                        value: ident,
+                                        pos: _,
+                                    },
+                                ) in params.into_iter().enumerate()
+                                {
+                                    compiler.frame_mut().unwrap().closure.parameters += 1;
+                                    let dst = Location::Register(
+                                        compiler.frame_mut().unwrap().new_local(ident),
+                                    );
+                                    compiler.write(
+                                        ByteCode::Field {
+                                            dst,
+                                            head: Source::Register(reg as u8),
+                                            field: Source::Int(idx as i64),
+                                        },
+                                        param_ln,
+                                    );
+                                }
+                            }
+                            Parameter::Map(params) => {
+                                for Located {
+                                    value: ident,
+                                    pos: _,
+                                } in params
+                                {
+                                    compiler.frame_mut().unwrap().closure.parameters += 1;
+                                    let dst = Location::Register(
+                                        compiler.frame_mut().unwrap().new_local(ident.clone()),
+                                    );
+                                    let ident = compiler.new_constant(Value::String(ident));
+                                    compiler.write(
+                                        ByteCode::Field {
+                                            dst,
+                                            head: Source::Register(reg as u8),
+                                            field: Source::Constant(ident),
+                                        },
+                                        param_ln,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    body.compile(compiler);
+                }
+                let Frame { closure, .. } = compiler.pop_frame().unwrap();
+                let addr = compiler.new_closure(Rc::new(closure));
+                compiler.write(ByteCode::Fn { dst, addr }, ln);
+                dst.into()
+            }
         }
     }
 }

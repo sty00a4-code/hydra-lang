@@ -89,6 +89,12 @@ impl Display for RunTimeErrorKind {
     }
 }
 impl Error for RunTimeErrorKind {}
+impl Display for RunTimeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.ln, self.err)
+    }
+}
+impl Error for RunTimeError {}
 
 impl Interpreter {
     pub fn call_frame(&self) -> Option<&CallFrame> {

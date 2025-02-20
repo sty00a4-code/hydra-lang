@@ -157,6 +157,11 @@ pub enum Atom {
     Vector(Vec<Located<Expression>>),
     Map(Vec<(Located<String>, Located<Expression>)>),
     Expression(Box<Located<Expression>>),
+    Fn {
+        params: Vec<Located<Parameter>>,
+        varargs: Option<Located<String>>,
+        body: Box<Located<Expression>>,
+    }
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum Path {
