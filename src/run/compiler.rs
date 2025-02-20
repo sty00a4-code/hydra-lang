@@ -443,7 +443,9 @@ impl Compilable for Located<Statement> {
                             }
                         }
                     }
-                    body.compile(compiler);
+                    if body.compile(compiler).is_none() {
+                        compiler.write(ByteCode::Return { src: None }, ln);
+                    }
                 }
                 let Frame { closure, .. } = compiler.pop_frame().unwrap();
                 let addr = compiler.new_closure(Rc::new(closure));
@@ -1174,7 +1176,8 @@ impl Compilable for Located<Atom> {
                             }
                         }
                     }
-                    body.compile(compiler);
+                    let src = body.compile(compiler);
+                    compiler.write(ByteCode::Return { src: Some(src) }, ln);
                 }
                 let Frame { closure, .. } = compiler.pop_frame().unwrap();
                 let addr = compiler.new_closure(Rc::new(closure));

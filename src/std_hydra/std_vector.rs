@@ -1,4 +1,6 @@
-use crate::run::interpreter::{Interpreter, RunTimeError, VECTOR_MODULE};
+use std::sync::{Arc, Mutex};
+
+use crate::run::interpreter::{Interpreter, VECTOR_MODULE};
 use crate::run::value::FnKind;
 use crate::*;
 
@@ -14,6 +16,7 @@ pub fn import(interpreter: &mut Interpreter) {
         "swap" = native_fn!(_swap),
         "sort" = native_fn!(_sort),
         "reduce" = native_fn!(_reduce),
+        "map" = native_fn!(_map),
     });
 }
 define_native_fn!(_len (_i args): value = typed!(args: Vector) => {
@@ -127,4 +130,21 @@ define_native_fn!(_reduce (interpreter args): vector = typed!(args: Vector), fun
         };
     }
     Ok(Some(acc))
+});
+define_native_fn!(_map (interpreter args): vector = typed!(args: Vector), func = typed!(args: Fn) => {
+    let vector = vector.lock().unwrap();
+    if vector.len() == 0 {
+        return Ok(None)
+    }
+    let mut new_vector = vector.clone();
+    for (i, value) in vector.iter().enumerate() {
+        *new_vector.get_mut(i).unwrap() = match func {
+            FnKind::Function(ref func) => {
+                interpreter.call(&func.lock().unwrap(), vec![value.clone()], None).map_err(Box::new)?;
+                interpreter.run().map_err(Box::new)?.unwrap_or_default()
+            }
+            FnKind::Native(ref func) => func(interpreter, vec![value.clone()])?.unwrap_or_default(),
+        };
+    }
+    Ok(Some(Value::Vector(Arc::new(Mutex::new(new_vector)))))
 });
